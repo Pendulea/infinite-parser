@@ -53,8 +53,10 @@ func main() {
 	go func() {
 		time.Sleep(time.Second * 2)
 		for _, set := range activeSets {
-			price := set.Assets[setlib.PRICE]
-			engine.Engine.AddTimeframeIndexing(price, time.Second*15)
+			for _, asset := range set.Assets {
+				engine.Engine.AddTimeframeIndexing(asset, time.Second*15)
+			}
+
 			// for _, asset := range set.Assets {
 			// 	asset.PrintReadList()
 			// }
