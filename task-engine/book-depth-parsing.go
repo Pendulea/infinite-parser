@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fantasim/gorunner"
 	pcommon "github.com/pendulea/pendule-common"
@@ -22,13 +21,15 @@ const (
 func printBookDepthParsingStatus(runner *gorunner.Runner, setID string) {
 	date := getDate(runner)
 
+	assets, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_ASSETS)
+
 	if runner.IsRunning() {
 		totalBookDepth := runner.StatValue(STAT_VALUE_DATA_COUNT)
 
 		log.WithFields(log.Fields{
 			"rows": pcommon.Format.LargeNumberToShortString(totalBookDepth),
 			"done": "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-		}).Info(fmt.Sprintf("Successfully stored %s book depth rows (%s)", setID, date))
+		}).Info(fmt.Sprintf("Successfully stored %s %s rows (%s)", setID, assets, date))
 	}
 }
 
@@ -37,11 +38,6 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 	process := func() error {
 		task := runner.Task
 		date, _ := gorunner.GetArg[string](task.Args, ARG_VALUE_DATE)
-
-		dateTime, err := pcommon.Format.StrDateToDate(date)
-		if err != nil {
-			return err
-		}
 
 		set := Engine.Sets.Find(pair.BuildSetID())
 		if set == nil {
@@ -101,7 +97,6 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 		mu := sync.RWMutex{}
 		err = nil
 
-		stateIDs := []string{}
 		for percent := -5; percent <= 5; percent++ {
 			if percent != 0 {
 				sign := pcommon.When[string](percent < 0).Then("m").Else("p")
@@ -109,7 +104,6 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 				if set.Assets[stateID] == nil {
 					return fmt.Errorf("asset %s not found", stateID)
 				}
-				stateIDs = append(stateIDs, stateID)
 				go func(state *setlib.AssetState, data setlib.UnitTimeArray) {
 					lerr := state.Store(data.ToRaw(state.Precision()), pcommon.Env.MIN_TIME_FRAME, -1)
 					if lerr != nil {
@@ -127,17 +121,7 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 			return err
 		}
 
-		tx := set.Assets[stateIDs[0]].NewTX(true)
-		for _, stateID := range stateIDs {
-			if err := set.Assets[stateID].
-				SetNewLastDataTime(
-					pcommon.Env.MIN_TIME_FRAME,
-					pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)),
-					tx); err != nil {
-				return err
-			}
-		}
-		if err := tx.Commit(); err != nil {
+		if err := updateAllConsistencyTime(set, getAssets(runner), date); err != nil {
 			return err
 		}
 

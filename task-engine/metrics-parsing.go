@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	setlib "pendulev2/set2"
 
@@ -21,13 +20,15 @@ const (
 func printMetricsParsingStatus(runner *gorunner.Runner, setID string) {
 	date := getDate(runner)
 
+	assets, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_ASSETS)
+
 	if runner.IsRunning() {
 		total := runner.StatValue(STAT_VALUE_DATA_COUNT)
 
 		log.WithFields(log.Fields{
 			"rows": pcommon.Format.LargeNumberToShortString(total),
 			"done": "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-		}).Info(fmt.Sprintf("Successfully stored %s metrics rows (%s)", setID, date))
+		}).Info(fmt.Sprintf("Successfully stored %s %s rows (%s)", setID, assets, date))
 	}
 }
 
@@ -35,11 +36,6 @@ func addMetricsParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair)
 
 	process := func() error {
 		date := getDate(runner)
-
-		dateTime, err := pcommon.Format.StrDateToDate(date)
-		if err != nil {
-			return err
-		}
 
 		set := Engine.Sets.Find(pair.BuildSetID())
 		if set == nil {
@@ -164,17 +160,8 @@ func addMetricsParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair)
 		if err != nil {
 			return err
 		}
-		tx := set.Assets[setlib.METRIC_SUM_OPEN_INTEREST].NewTX(true)
-		for id := range stateMap {
-			if err := set.Assets[id].
-				SetNewLastDataTime(
-					pcommon.Env.MIN_TIME_FRAME,
-					pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)),
-					tx); err != nil {
-				return err
-			}
-		}
-		if err := tx.Commit(); err != nil {
+
+		if err := updateAllConsistencyTime(set, getAssets(runner), date); err != nil {
 			return err
 		}
 

@@ -29,6 +29,8 @@ const (
 func printTradeParsingStatus(runner *gorunner.Runner, setID string) {
 	date := getDate(runner)
 
+	assets, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_ASSETS)
+
 	if runner.IsRunning() {
 		if runner.CountSteps() == 0 {
 			archiveSize := runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)
@@ -52,13 +54,13 @@ func printTradeParsingStatus(runner *gorunner.Runner, setID string) {
 				"speed":    pcommon.Format.LargeNumberToShortString(int64(runner.SizePerMillisecond()*1000)) + " trades/s",
 				"total":    tradeParsed,
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Building %s price and volume rows (%s)", setID, date))
+			}).Info(fmt.Sprintf("Building %s %s rows (%s)", setID, assets, date))
 		} else if runner.CountSteps() == 3 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
 			log.WithFields(log.Fields{
 				"rows":  pcommon.Format.LargeNumberToShortString(totalRows),
 				"trade": pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
-			}).Info(fmt.Sprintf("Storing %s price and volume rows... (%s)", setID, date))
+			}).Info(fmt.Sprintf("Storing %s %s rows... (%s)", setID, assets, date))
 
 		} else if runner.CountSteps() >= 4 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
@@ -67,20 +69,14 @@ func printTradeParsingStatus(runner *gorunner.Runner, setID string) {
 				"rows":  pcommon.Format.LargeNumberToShortString(totalRows),
 				"trade": pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
 				"done":  "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully stored %s price and volume rows (%s)", setID, date))
+			}).Info(fmt.Sprintf("Successfully stored %s %s rows (%s)", setID, assets, date))
 		}
 	}
 }
 
 func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
-
 	process := func() error {
 		date := getDate(runner)
-
-		dateTime, err := pcommon.Format.StrDateToDate(date)
-		if err != nil {
-			return err
-		}
 
 		set := Engine.Sets.Find(pair.BuildSetID())
 		if set == nil {
@@ -150,18 +146,18 @@ func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 		wg.Wait()
 
 		runner.SetStatValue(STAT_VALUE_DATA_COUNT, int64(len(prices)))
-
 		runner.AddStep()
 		wg.Add(2)
+
 		var err0, err1 error
 		go func() {
 			state := set.Assets[setlib.PRICE]
-			err0 = state.Store(prices.ToRaw(state.Precision()), pcommon.Env.MIN_TIME_FRAME, pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)))
+			err0 = state.Store(prices.ToRaw(state.Precision()), pcommon.Env.MIN_TIME_FRAME, -1)
 			wg.Done()
 		}()
 		go func() {
 			state := set.Assets[setlib.VOLUME]
-			err1 = state.Store(volumes.ToRaw(state.Precision()), pcommon.Env.MIN_TIME_FRAME, pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)))
+			err1 = state.Store(volumes.ToRaw(state.Precision()), pcommon.Env.MIN_TIME_FRAME, -1)
 			wg.Done()
 		}()
 
@@ -171,6 +167,10 @@ func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 		}
 		if err1 != nil {
 			return err1
+		}
+
+		if err := updateAllConsistencyTime(set, getAssets(runner), date); err != nil {
+			return err
 		}
 
 		runner.AddStep()

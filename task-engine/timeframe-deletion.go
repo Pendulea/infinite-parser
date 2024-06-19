@@ -56,7 +56,7 @@ func addTimeframeDeletionRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		if err != nil {
 			return err
 		}
-		t1, err := state.IsConsistentUntil(timeframe)
+		t1, err := state.GetLastConsistencyTime(timeframe)
 		if err != nil {
 			return err
 		}

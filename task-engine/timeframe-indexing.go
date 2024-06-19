@@ -66,7 +66,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			return nil
 		}
 
-		maxTime, err := state.IsConsistentUntil(pcommon.Env.MIN_TIME_FRAME)
+		maxTime, err := state.GetLastConsistencyTime(pcommon.Env.MIN_TIME_FRAME)
 		if err != nil {
 			return err
 		}

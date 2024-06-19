@@ -21,6 +21,14 @@ import (
 // 	pcommon "github.com/pendulea/pendule-common"
 // )
 
+func getAssets(r *gorunner.Runner) []string {
+	assets, ok := gorunner.GetArg[string](r.Args, ARG_VALUE_ASSETS)
+	if !ok {
+		log.Fatal("Assets not found in runner")
+	}
+	return strings.Split(assets, ",")
+}
+
 func getDate(r *gorunner.Runner) string {
 	date, ok := gorunner.GetArg[string](r.Args, ARG_VALUE_DATE)
 	if !ok {
@@ -170,7 +178,7 @@ func (e *engine) generalDataParsingCheck(pair *pcommon.Pair, concernedStates set
 	if err != nil {
 		return "", err
 	}
-	date, err := leastConsistent.Sync()
+	date, err := leastConsistent.ShouldSync()
 	if err != nil {
 		return "", err
 	}
@@ -187,4 +195,27 @@ func (e *engine) generalDataParsingCheck(pair *pcommon.Pair, concernedStates set
 	}
 
 	return *date, nil
+}
+
+func updateAllConsistencyTime(set *setlib.Set, stateIDs []string, date string) error {
+	dateTime, err := pcommon.Format.StrDateToDate(date)
+	if err != nil {
+		return err
+	}
+
+	tx := set.Assets[stateIDs[0]].NewTX(true)
+	for _, id := range stateIDs {
+		if err := set.Assets[id].
+			SetNewConsistencyTime(
+				pcommon.Env.MIN_TIME_FRAME,
+				pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)),
+				tx); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
