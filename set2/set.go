@@ -2,6 +2,7 @@ package set2
 
 import (
 	"log"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	"github.com/sirupsen/logrus"
@@ -83,6 +84,14 @@ func (s *Set) Close() {
 				"symbol": s.ID(),
 				"msg":    err.Error(),
 			}).Error("Error closing database connection")
+		}
+	}
+}
+
+func (s *Set) AddTimeframe(timeframe time.Duration, engineCB func(state *AssetState, timeframe time.Duration) error) {
+	for _, asset := range s.Assets {
+		if !asset.IsTimeframeSupported(timeframe) {
+			engineCB(asset, timeframe)
 		}
 	}
 }

@@ -26,7 +26,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pendulea/pendule-common v0.7.8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/samber/lo v1.39.0 // indirect
 	go.opencensus.io v0.22.5 // indirect
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect

@@ -94,24 +94,19 @@ func addTimeframeDeletionRunnerProcess(runner *gorunner.Runner, state *setlib.As
 func buildTimeframeDeletionRunner(state *setlib.AssetState, timeframe time.Duration) *gorunner.Runner {
 	runner := gorunner.NewRunner(buildTimeFrameDeletionKey(state.SetRef.ID(), state.ID(), timeframe))
 
-	runner.Task.AddArgs(ARG_VALUE_TIMEFRAME, timeframe)
-	runner.AddArgs(ARG_VALUE_SET_ID, state.SetRef.ID())
-	runner.AddArgs(ARG_VALUE_ASSETS, state.ID)
+	addTimeframe(runner, timeframe)
+	addAssetAndSetIDs(runner, []string{state.SetAndAssetID()})
 
 	addTimeframeDeletionRunnerProcess(runner, state, timeframe)
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameSetID(r, runner) {
+			if !haveSameFullIDs(r, runner) {
 				continue
 			}
 
 			if !haveSameTimeframe(r, runner) {
-				continue
-			}
-
-			if !haveCommonAssets(r, runner) {
 				continue
 			}
 

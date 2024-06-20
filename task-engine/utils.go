@@ -12,21 +12,22 @@ import (
 	pcommon "github.com/pendulea/pendule-common"
 )
 
-// import (
-// 	"pendule/indicator"
-// 	"strings"
-// 	"time"
+const (
+	ARG_VALUE_DATE      = "date"
+	ARG_VALUE_FULL_IDS  = "full_ids"
+	ARG_VALUE_TIMEFRAME = "timeframe"
+)
 
-// 	gorunner "github.com/fantasim/gorunner"
-// 	pcommon "github.com/pendulea/pendule-common"
-// )
+func addDate(r *gorunner.Runner, date string) {
+	r.Args[ARG_VALUE_DATE] = date
+}
 
-func getAssets(r *gorunner.Runner) []string {
-	assets, ok := gorunner.GetArg[string](r.Args, ARG_VALUE_ASSETS)
-	if !ok {
-		log.Fatal("Assets not found in runner")
-	}
-	return strings.Split(assets, ",")
+func addTimeframe(r *gorunner.Runner, timeframe time.Duration) {
+	r.Args[ARG_VALUE_TIMEFRAME] = timeframe
+}
+
+func addAssetAndSetIDs(r *gorunner.Runner, fullIDs []string) {
+	r.Args[ARG_VALUE_FULL_IDS] = strings.Join(fullIDs, ",")
 }
 
 func getDate(r *gorunner.Runner) string {
@@ -45,15 +46,38 @@ func getTimeframe(r *gorunner.Runner) time.Duration {
 	return timeframe
 }
 
-func haveSameSetID(r1, r2 *gorunner.Runner) bool {
-	setID1, ok := gorunner.GetArg[string](r1.Args, ARG_VALUE_SET_ID)
-	setID2, ok2 := gorunner.GetArg[string](r2.Args, ARG_VALUE_SET_ID)
+func parseAssetStateIDs(r *gorunner.Runner) []string {
+	fullIDs, ok := gorunner.GetArg[string](r.Args, ARG_VALUE_FULL_IDS)
+	if !ok {
+		log.Fatal("Full IDs not found in runner")
+	}
+	array := strings.Split(fullIDs, ",")
+	ret := make([]string, len(array))
+	for i, fullID := range array {
+		sp := strings.Split(fullID, ":")
+		ret[i] = sp[1]
+	}
+	return ret
+}
+
+func haveSameFullIDs(r1, r2 *gorunner.Runner) bool {
+	setID1, ok := gorunner.GetArg[string](r1.Args, ARG_VALUE_FULL_IDS)
+	setID2, ok2 := gorunner.GetArg[string](r2.Args, ARG_VALUE_FULL_IDS)
 
 	if !ok || !ok2 {
 		return false
 	}
 
-	return setID1 == setID2
+	setID1Array := strings.Split(setID1, ",")
+	setID2Array := strings.Split(setID2, ",")
+	for _, s1 := range setID1Array {
+		for _, s2 := range setID2Array {
+			if s1 == s2 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func haveSameTimeframe(r1, r2 *gorunner.Runner) bool {
@@ -65,27 +89,6 @@ func haveSameTimeframe(r1, r2 *gorunner.Runner) bool {
 	}
 
 	return timeframe1 == timeframe2
-}
-
-func haveCommonAssets(r1, r2 *gorunner.Runner) bool {
-	assets1, ok := gorunner.GetArg[string](r1.Args, ARG_VALUE_ASSETS)
-	assets2, ok2 := gorunner.GetArg[string](r2.Args, ARG_VALUE_ASSETS)
-
-	if !ok || !ok2 {
-		return false
-	}
-
-	assets1Array := strings.Split(assets1, ",")
-	assets2Array := strings.Split(assets2, ",")
-
-	for _, a1 := range assets1Array {
-		for _, a2 := range assets2Array {
-			if a1 == a2 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // func isRunnerTimeframeDeletion(runner *gorunner.Runner) bool {

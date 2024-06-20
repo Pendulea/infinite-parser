@@ -18,6 +18,10 @@ type AssetState struct {
 	SetRef *Set //reference to the set
 }
 
+func (state *AssetState) SetAndAssetID() string {
+	return state.SetRef.ID() + ":" + state.ID()
+}
+
 func (state *AssetState) Precision() int8 {
 	return state.precision
 }

@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	setlib "pendulev2/set2"
@@ -20,7 +19,7 @@ const (
 func printMetricsParsingStatus(runner *gorunner.Runner, setID string) {
 	date := getDate(runner)
 
-	assets, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_ASSETS)
+	assetStateIDs := parseAssetStateIDs(runner)
 
 	if runner.IsRunning() {
 		total := runner.StatValue(STAT_VALUE_DATA_COUNT)
@@ -28,7 +27,7 @@ func printMetricsParsingStatus(runner *gorunner.Runner, setID string) {
 		log.WithFields(log.Fields{
 			"rows": pcommon.Format.LargeNumberToShortString(total),
 			"done": "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-		}).Info(fmt.Sprintf("Successfully stored %s %s rows (%s)", setID, assets, date))
+		}).Info(fmt.Sprintf("Successfully stored %s %d columns (%s)", setID, len(assetStateIDs), date))
 	}
 }
 
@@ -161,7 +160,7 @@ func addMetricsParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair)
 			return err
 		}
 
-		if err := updateAllConsistencyTime(set, getAssets(runner), date); err != nil {
+		if err := updateAllConsistencyTime(set, parseAssetStateIDs(runner), date); err != nil {
 			return err
 		}
 
@@ -173,34 +172,21 @@ func addMetricsParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair)
 	runner.AddProcess(process)
 }
 
-func buildMetricsParsingRunner(pair *pcommon.Pair, date string) *gorunner.Runner {
+func buildMetricsParsingRunner(pair *pcommon.Pair, concernedAssets setlib.AssetStates, date string) *gorunner.Runner {
 	runner := gorunner.NewRunner(METRICS_PARSING_KEY + "-" + pair.BuildSetID() + "-" + date)
 
-	concernedAssets := []string{
-		setlib.METRIC_SUM_OPEN_INTEREST,
-		setlib.METRIC_COUNT_TOP_TRADER_LONG_SHORT_RATIO,
-		setlib.METRIC_SUM_TOP_TRADER_LONG_SHORT_RATIO,
-		setlib.METRIC_COUNT_LONG_SHORT_RATIO,
-		setlib.METRIC_SUM_TAKER_LONG_SHORT_VOL_RATIO,
-	}
-
-	runner.AddArgs(ARG_VALUE_TIMEFRAME, pcommon.Env.MIN_TIME_FRAME)
-	runner.AddArgs(ARG_VALUE_DATE, date)
-	runner.AddArgs(ARG_VALUE_SET_ID, pair.BuildSetID())
-	runner.AddArgs(ARG_VALUE_ASSETS, strings.Join(concernedAssets, ","))
+	addTimeframe(runner, pcommon.Env.MIN_TIME_FRAME)
+	addDate(runner, date)
+	addAssetAndSetIDs(runner, concernedAssets.SetAndAssetIDs())
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameSetID(r, runner) {
+			if !haveSameFullIDs(r, runner) {
 				continue
 			}
 
 			if !haveSameTimeframe(r, runner) {
-				continue
-			}
-
-			if !haveCommonAssets(r, runner) {
 				continue
 			}
 

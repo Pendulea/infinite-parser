@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	setlib "pendulev2/set2"
 	"pendulev2/util"
@@ -51,7 +50,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 
 	process := func() error {
 
-		if state.IsPoint() {
+		if !state.IsUnit() && !state.IsQuantity() {
 			return nil
 		}
 
@@ -116,25 +115,14 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		defer iter.Close()
 
 		for t1 < maxTime {
-			ticks, err := state.GetInDataRange(t0, t1, txn, iter)
+			ticks, err := state.GetInDataRange(t0, t1, pcommon.Env.MIN_TIME_FRAME, txn, iter)
 			if err != nil {
 				return err
 			}
 			size, _ := util.Len(ticks)
 			currentReadSize += size
-
 			if size > 0 {
-				if state.IsUnit() {
-					list := ticks.(setlib.UnitTimeArray)
-					ret := setlib.AggregateUnits(list, false)
-					batch[t1] = ret.ToRaw(state.Precision())
-				} else if state.IsQuantity() {
-					list := ticks.(setlib.QuantityTimeArray)
-					ret := setlib.AggregateQuantities(list)
-					batch[t1] = ret.ToRaw(state.Precision())
-				} else {
-					return errors.New("unsupported state type")
-				}
+				batch[t1] = ticks.Aggregate(timeframe, t1).ToRaw(state.Precision())
 				runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, 1)
 			}
 			if len(batch) >= MAX_BATCH_SIZE || currentReadSize >= MAX_READ_SIZE {
@@ -172,24 +160,19 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 func buildTimeframeIndexingRunner(state *setlib.AssetState, timeframe time.Duration) *gorunner.Runner {
 	runner := gorunner.NewRunner(buildTimeFrameIndexingKey(state.SetRef.ID(), state.ID(), timeframe))
 
-	runner.Task.AddArgs(ARG_VALUE_TIMEFRAME, timeframe)
-	runner.AddArgs(ARG_VALUE_SET_ID, state.SetRef.ID())
-	runner.AddArgs(ARG_VALUE_ASSETS, state.ID)
+	addTimeframe(runner, timeframe)
+	addAssetAndSetIDs(runner, []string{state.SetAndAssetID()})
 
 	addTimeframeIndexingRunnerProcess(runner, state)
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameSetID(r, runner) {
+			if !haveSameFullIDs(r, runner) {
 				continue
 			}
 
 			if !haveSameTimeframe(r, runner) {
-				continue
-			}
-
-			if !haveCommonAssets(r, runner) {
 				continue
 			}
 

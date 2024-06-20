@@ -17,11 +17,6 @@ import (
 const (
 	TRADE_PARSING_KEY = "trade_parsing"
 
-	ARG_VALUE_DATE      = "date"
-	ARG_VALUE_SET_ID    = "set_id"
-	ARG_VALUE_TIMEFRAME = "timeframe"
-	ARG_VALUE_ASSETS    = "assets"
-
 	STAT_VALUE_ARCHIVE_SIZE = "ARCHIVE_SIZE"
 	STAT_VALUE_DATA_COUNT   = "DATA_COUNT"
 )
@@ -29,7 +24,7 @@ const (
 func printTradeParsingStatus(runner *gorunner.Runner, setID string) {
 	date := getDate(runner)
 
-	assets, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_ASSETS)
+	assetStateIDs := parseAssetStateIDs(runner)
 
 	if runner.IsRunning() {
 		if runner.CountSteps() == 0 {
@@ -54,13 +49,13 @@ func printTradeParsingStatus(runner *gorunner.Runner, setID string) {
 				"speed":    pcommon.Format.LargeNumberToShortString(int64(runner.SizePerMillisecond()*1000)) + " trades/s",
 				"total":    tradeParsed,
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Building %s %s rows (%s)", setID, assets, date))
+			}).Info(fmt.Sprintf("Building %s %s columns (%s)", setID, strings.Join(assetStateIDs, ", "), date))
 		} else if runner.CountSteps() == 3 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
 			log.WithFields(log.Fields{
 				"rows":  pcommon.Format.LargeNumberToShortString(totalRows),
 				"trade": pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
-			}).Info(fmt.Sprintf("Storing %s %s rows... (%s)", setID, assets, date))
+			}).Info(fmt.Sprintf("Storing %s %s columns... (%s)", setID, strings.Join(assetStateIDs, ", "), date))
 
 		} else if runner.CountSteps() >= 4 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
@@ -69,7 +64,7 @@ func printTradeParsingStatus(runner *gorunner.Runner, setID string) {
 				"rows":  pcommon.Format.LargeNumberToShortString(totalRows),
 				"trade": pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
 				"done":  "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully stored %s %s rows (%s)", setID, assets, date))
+			}).Info(fmt.Sprintf("Successfully stored %s %s columns (%s)", setID, strings.Join(assetStateIDs, ", "), date))
 		}
 	}
 }
@@ -169,7 +164,7 @@ func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 			return err1
 		}
 
-		if err := updateAllConsistencyTime(set, getAssets(runner), date); err != nil {
+		if err := updateAllConsistencyTime(set, parseAssetStateIDs(runner), date); err != nil {
 			return err
 		}
 
@@ -181,8 +176,8 @@ func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 }
 
 func AggregateTradesToPrices(trades pcommon.TradeList) setlib.UnitTimeArray {
-	pricesBucket := []setlib.UnitTime{}
-	aggrUnitList := []setlib.UnitTime{}
+	pricesBucket := setlib.UnitTimeArray{}
+	aggrUnitList := setlib.UnitTimeArray{}
 
 	for _, trade := range trades {
 		div := pcommon.TimeUnit(0).Add(pcommon.Env.MIN_TIME_FRAME)
@@ -200,20 +195,20 @@ func AggregateTradesToPrices(trades pcommon.TradeList) setlib.UnitTimeArray {
 			if prev.Time == currentTime {
 				aggrUnitList = append(aggrUnitList, setlib.NewUnit(trade.Price).ToTime(currentTime))
 			} else {
-				pricesBucket = append(pricesBucket, setlib.AggregateUnits(aggrUnitList, true).ToTime(currentTime))
-				aggrUnitList = []setlib.UnitTime{}
+				pricesBucket = append(pricesBucket, aggrUnitList.Aggregate(pcommon.Env.MIN_TIME_FRAME, currentTime).(setlib.UnitTime))
+				aggrUnitList = setlib.UnitTimeArray{}
 			}
 		}
 	}
 	if len(aggrUnitList) > 0 {
-		pricesBucket = append(pricesBucket, setlib.AggregateUnits(aggrUnitList, true).ToTime(aggrUnitList[len(aggrUnitList)-1].Time))
+		pricesBucket = append(pricesBucket, aggrUnitList.Aggregate(pcommon.Env.MIN_TIME_FRAME, aggrUnitList[len(aggrUnitList)-1].Time).(setlib.UnitTime))
 	}
 	return pricesBucket
 }
 
 func AggregateTradesToVolumes(trades pcommon.TradeList) setlib.QuantityTimeArray {
-	volumesBucket := []setlib.QuantityTime{}
-	aggrQtyList := []setlib.QuantityTime{}
+	volumesBucket := setlib.QuantityTimeArray{}
+	aggrQtyList := setlib.QuantityTimeArray{}
 
 	for _, trade := range trades {
 		div := pcommon.TimeUnit(0).Add(pcommon.Env.MIN_TIME_FRAME)
@@ -232,39 +227,32 @@ func AggregateTradesToVolumes(trades pcommon.TradeList) setlib.QuantityTimeArray
 			if prev.Time == currentTime {
 				aggrQtyList = append(aggrQtyList, setlib.NewQuantity(qty).ToTime(currentTime))
 			} else {
-				volumesBucket = append(volumesBucket, setlib.AggregateQuantities(aggrQtyList).ToTime(currentTime))
+				volumesBucket = append(volumesBucket, aggrQtyList.Aggregate(pcommon.Env.MIN_TIME_FRAME, currentTime).(setlib.QuantityTime))
 				aggrQtyList = []setlib.QuantityTime{}
 			}
 		}
 	}
 	if len(aggrQtyList) > 0 {
-		volumesBucket = append(volumesBucket, setlib.AggregateQuantities(aggrQtyList).ToTime(aggrQtyList[len(aggrQtyList)-1].Time))
+		volumesBucket = append(volumesBucket, aggrQtyList.Aggregate(pcommon.Env.MIN_TIME_FRAME, aggrQtyList[len(aggrQtyList)-1].Time).(setlib.QuantityTime))
 	}
 	return volumesBucket
 }
 
-func buildTradeParsingRunner(pair *pcommon.Pair, date string) *gorunner.Runner {
+func buildTradeParsingRunner(pair *pcommon.Pair, concernedAssets setlib.AssetStates, date string) *gorunner.Runner {
 	runner := gorunner.NewRunner(TRADE_PARSING_KEY + "-" + pair.BuildSetID() + "-" + date)
 
-	concernedAssets := []string{setlib.PRICE, setlib.VOLUME}
-
-	runner.AddArgs(ARG_VALUE_TIMEFRAME, pcommon.Env.MIN_TIME_FRAME)
-	runner.AddArgs(ARG_VALUE_DATE, date)
-	runner.AddArgs(ARG_VALUE_SET_ID, pair.BuildSetID())
-	runner.AddArgs(ARG_VALUE_ASSETS, strings.Join(concernedAssets, ","))
+	addTimeframe(runner, pcommon.Env.MIN_TIME_FRAME)
+	addDate(runner, date)
+	addAssetAndSetIDs(runner, concernedAssets.SetAndAssetIDs())
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameSetID(r, runner) {
+			if !haveSameFullIDs(r, runner) {
 				continue
 			}
 
 			if !haveSameTimeframe(r, runner) {
-				continue
-			}
-
-			if !haveCommonAssets(r, runner) {
 				continue
 			}
 

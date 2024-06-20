@@ -25,3 +25,19 @@ func (states AssetStates) LeastConsistent(timeframe time.Duration) (*AssetState,
 
 	return ret, nil
 }
+
+func (state AssetStates) IDs() []string {
+	ids := make([]string, len(state))
+	for i, s := range state {
+		ids[i] = s.ID()
+	}
+	return ids
+}
+
+func (state AssetStates) SetAndAssetIDs() []string {
+	ids := make([]string, len(state))
+	for i, s := range state {
+		ids[i] = s.SetAndAssetID()
+	}
+	return ids
+}

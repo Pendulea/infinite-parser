@@ -6,10 +6,20 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	"github.com/shopspring/decimal"
 )
+
+const OPEN = "open"
+const HIGH = "high"
+const LOW = "low"
+const CLOSE = "close"
+const AVERAGE = "average"
+const MEDIAN = "median"
+const ABSOLUTE_SUM = "absolute_sum"
+const COUNT = "count"
 
 type Unit struct {
 	Open        float64 `json:"open"`
@@ -35,6 +45,10 @@ func (a UnitTimeArray) ToRaw(decimal int8) map[pcommon.TimeUnit][]byte {
 		ret[v.Time] = v.ToRaw(decimal)
 	}
 	return ret
+}
+
+func (m Unit) Type() DataType {
+	return UNIT
 }
 
 func (m Unit) IsEmpty() bool {
@@ -70,8 +84,8 @@ func getPrecision(val float64) int {
 	return len(str) - decimalPos - 1
 }
 
-func AggregateUnits(list []UnitTime, minTimeframe bool) Unit {
-	ret := Unit{}
+func (list UnitTimeArray) Aggregate(timeframe time.Duration, newTime pcommon.TimeUnit) Data {
+	ret := UnitTime{Time: newTime}
 	closes := []float64{}
 
 	minDecimals := 0
@@ -81,7 +95,7 @@ func AggregateUnits(list []UnitTime, minTimeframe bool) Unit {
 			continue
 		}
 
-		if i > 0 && minTimeframe {
+		if i > 0 && timeframe == pcommon.Env.MIN_TIME_FRAME {
 			prevPrice := list[i-1].Close
 			currentPrice := unit.Close
 
@@ -128,7 +142,7 @@ func AggregateUnits(list []UnitTime, minTimeframe bool) Unit {
 		closes = append(closes, unit.Close)
 	}
 
-	if !minTimeframe {
+	if timeframe != pcommon.Env.MIN_TIME_FRAME {
 		apsString := pcommon.Format.Float(ret.AbsoluteSum, int8(minDecimals))
 		newAPS, err := strconv.ParseFloat(apsString, 64)
 		if err != nil {
@@ -188,4 +202,86 @@ func (p Unit) ToTime(time pcommon.TimeUnit) UnitTime {
 		Unit: p,
 		Time: time,
 	}
+}
+
+func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckListRequirement) string {
+	str := ""
+
+	if requirement[TIME] {
+		if q.Time > 0 {
+			if pcommon.Env.MIN_TIME_FRAME >= time.Second {
+				str += strconv.FormatInt(q.Time.ToTime().Unix(), 10) + ","
+			} else {
+				str += q.Time.String() + ","
+			}
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[OPEN] {
+		if q.Count > 1 {
+			str += pcommon.Format.Float(q.Open, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[HIGH] {
+		if q.Count > 1 {
+			str += pcommon.Format.Float(q.High, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[LOW] {
+		if q.Count > 1 {
+			str += pcommon.Format.Float(q.Low, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[CLOSE] {
+		if q.Count > 0 {
+			str += pcommon.Format.Float(q.Close, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[AVERAGE] {
+		if q.Count > 1 {
+			str += pcommon.Format.Float(q.Average, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[MEDIAN] {
+		if q.Count > 1 {
+			str += pcommon.Format.Float(q.Median, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[ABSOLUTE_SUM] {
+		if q.AbsoluteSum != 0.00 {
+			str += pcommon.Format.Float(q.AbsoluteSum, decimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requirement[COUNT] {
+		if q.Count > 0 {
+			str += strconv.FormatInt(q.Count, 10)
+		} else {
+			str += ","
+		}
+	}
+
+	return str
 }

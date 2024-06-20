@@ -6,9 +6,20 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 )
+
+const TIME = "time"
+const PLUS = "plus"
+const MINUS = "minus"
+const PLUS_AVERAGE = "plus_average"
+const MINUS_AVERAGE = "minus_average"
+const PLUS_MEDIAN = "plus_median"
+const MINUS_MEDIAN = "minus_median"
+const PLUS_COUNT = "plus_count"
+const MINUS_COUNT = "minus_count"
 
 type Quantity struct {
 	Plus  float64 `json:"plus"`
@@ -22,6 +33,10 @@ type Quantity struct {
 
 	PlusCount  int64 `json:"plus_count"`  // count
 	MinusCount int64 `json:"minus_count"` // count
+}
+
+func (m Quantity) Type() DataType {
+	return QUANTITY
 }
 
 type QuantityTime struct {
@@ -61,8 +76,8 @@ func NewQuantity(v float64) Quantity {
 	return ret
 }
 
-func AggregateQuantities(list QuantityTimeArray) Quantity {
-	ret := Quantity{}
+func (list QuantityTimeArray) Aggregate(timeframe time.Duration, newTime pcommon.TimeUnit) Data {
+	ret := QuantityTime{Time: newTime}
 
 	amountsPlus := []float64{}
 	amountMinus := []float64{}
@@ -87,7 +102,7 @@ func AggregateQuantities(list QuantityTimeArray) Quantity {
 	return ret
 }
 
-func (m *Quantity) IsEmpty() bool {
+func (m Quantity) IsEmpty() bool {
 	return m.MinusCount == 0 && m.PlusCount == 0
 }
 
@@ -151,4 +166,85 @@ func (q Quantity) ToTime(time pcommon.TimeUnit) QuantityTime {
 		Quantity: q,
 		Time:     time,
 	}
+}
+
+func (q QuantityTime) CSVLine(prefix string, volumeDecimals int8, requiremment CSVCheckListRequirement) string {
+	str := ""
+	if requiremment[TIME] {
+		if q.Time > 0 {
+			if pcommon.Env.MIN_TIME_FRAME >= time.Second {
+				str += strconv.FormatInt(q.Time.ToTime().Unix(), 10) + ","
+			} else {
+				str += q.Time.String() + ","
+			}
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[PLUS] {
+		if q.Plus != 0 {
+			str += pcommon.Format.Float(q.Plus, volumeDecimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[MINUS] {
+		if q.Minus != 0 {
+			str += pcommon.Format.Float(q.Minus, volumeDecimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[PLUS_AVERAGE] {
+		if q.PlusAvg != 0 {
+			str += pcommon.Format.Float(q.PlusAvg, volumeDecimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[MINUS_AVERAGE] {
+		if q.MinusAvg != 0 {
+			str += pcommon.Format.Float(q.MinusAvg, volumeDecimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[PLUS_MEDIAN] {
+		if q.PlusMed != 0 {
+			str += pcommon.Format.Float(q.PlusMed, volumeDecimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[MINUS_MEDIAN] {
+		if q.MinusMed != 0 {
+			str += pcommon.Format.Float(q.MinusMed, volumeDecimals) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[PLUS_COUNT] {
+		if q.PlusCount != 0 {
+			str += strconv.FormatInt(q.PlusCount, 10) + ","
+		} else {
+			str += ","
+		}
+	}
+
+	if requiremment[MINUS_COUNT] {
+		if q.MinusCount != 0 {
+			str += strconv.FormatInt(q.MinusCount, 10)
+		} else {
+			str += ","
+		}
+	}
+
+	return str
 }

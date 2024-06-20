@@ -1,15 +1,6 @@
 package set2
 
-type DataType int8
-
-// units are data that can be aggregated around a candle (open, close, high, low, etc)
-const UNIT DataType = 1
-
-// quantities are data that can be summed up (volume, open interest, etc)
-const QUANTITY DataType = 2
-
-// points are simple data (a float64) that cannot be aggregated or summed
-const POINT DataType = 3
+type CSVCheckListRequirement map[string]bool
 
 // Defaults assets list
 const PRICE = "price"

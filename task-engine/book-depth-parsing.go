@@ -6,7 +6,6 @@ import (
 	"os"
 	setlib "pendulev2/set2"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/fantasim/gorunner"
@@ -21,7 +20,7 @@ const (
 func printBookDepthParsingStatus(runner *gorunner.Runner, setID string) {
 	date := getDate(runner)
 
-	assets, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_ASSETS)
+	assetStateIDs := parseAssetStateIDs(runner)
 
 	if runner.IsRunning() {
 		totalBookDepth := runner.StatValue(STAT_VALUE_DATA_COUNT)
@@ -29,7 +28,7 @@ func printBookDepthParsingStatus(runner *gorunner.Runner, setID string) {
 		log.WithFields(log.Fields{
 			"rows": pcommon.Format.LargeNumberToShortString(totalBookDepth),
 			"done": "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-		}).Info(fmt.Sprintf("Successfully stored %s %s rows (%s)", setID, assets, date))
+		}).Info(fmt.Sprintf("Successfully stored %s %d columns (%s)", setID, len(assetStateIDs), date))
 	}
 }
 
@@ -121,7 +120,7 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 			return err
 		}
 
-		if err := updateAllConsistencyTime(set, getAssets(runner), date); err != nil {
+		if err := updateAllConsistencyTime(set, parseAssetStateIDs(runner), date); err != nil {
 			return err
 		}
 
@@ -132,28 +131,24 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 	runner.AddProcess(process)
 }
 
-func buildBookDepthParsingRunner(pair *pcommon.Pair, date string) *gorunner.Runner {
-	runner := gorunner.NewRunner(BOOKDEPTH_PARSING_KEY + "-" + pair.BuildSetID() + "-" + date)
+func buildBookDepthParsingRunner(pair *pcommon.Pair, concernedAssets setlib.AssetStates, date string) *gorunner.Runner {
 
-	concernedAssets := []string{setlib.BOOK_DEPTH_M1, setlib.BOOK_DEPTH_M2, setlib.BOOK_DEPTH_M3, setlib.BOOK_DEPTH_M4, setlib.BOOK_DEPTH_M5, setlib.BOOK_DEPTH_P1, setlib.BOOK_DEPTH_P2, setlib.BOOK_DEPTH_P3, setlib.BOOK_DEPTH_P4, setlib.BOOK_DEPTH_P5}
+	runner := gorunner.NewRunner(BOOKDEPTH_PARSING_KEY + "-" + concernedAssets[0].SetRef.ID() + "-" + date)
 
-	runner.AddArgs(ARG_VALUE_TIMEFRAME, pcommon.Env.MIN_TIME_FRAME)
-	runner.AddArgs(ARG_VALUE_DATE, date)
-	runner.AddArgs(ARG_VALUE_SET_ID, pair.BuildSetID())
-	runner.AddArgs(ARG_VALUE_ASSETS, strings.Join(concernedAssets, ","))
+	concernedAssets.SetAndAssetIDs()
+
+	addTimeframe(runner, pcommon.Env.MIN_TIME_FRAME)
+	addDate(runner, date)
+	addAssetAndSetIDs(runner, concernedAssets.SetAndAssetIDs())
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameSetID(r, runner) {
+			if !haveSameFullIDs(r, runner) {
 				continue
 			}
 
 			if !haveSameTimeframe(r, runner) {
-				continue
-			}
-
-			if !haveCommonAssets(r, runner) {
 				continue
 			}
 

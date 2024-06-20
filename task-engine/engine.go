@@ -65,7 +65,7 @@ func (e *engine) AddBookDepthParsing(concernedStates setlib.AssetStates, pair *p
 		return err
 	}
 
-	r := buildBookDepthParsingRunner(pair, date)
+	r := buildBookDepthParsingRunner(pair, concernedStates, date)
 	r.AddProcessCallback(func(engine *gorunner.Engine, runner *gorunner.Runner) {
 		if runner.CountSteps() == 1 && runner.GetError() == nil {
 			e.AddBookDepthParsing(concernedStates, pair)
@@ -94,7 +94,7 @@ func (e *engine) AddMetricsParsing(concernedStates setlib.AssetStates, pair *pco
 		return err
 	}
 
-	r := buildMetricsParsingRunner(pair, date)
+	r := buildMetricsParsingRunner(pair, concernedStates, date)
 	r.AddProcessCallback(func(engine *gorunner.Engine, runner *gorunner.Runner) {
 		if runner.CountSteps() == 1 && runner.GetError() == nil {
 			e.AddMetricsParsing(concernedStates, pair)
@@ -117,6 +117,16 @@ func (e *engine) AddMetricsParsing(concernedStates setlib.AssetStates, pair *pco
 	return nil
 }
 
+func (e *engine) AddCSVBuilding(packedOrder CSVBuildingOrderPacked) error {
+	p, err := parsePackedOrder(*e.Sets, packedOrder)
+	if err != nil {
+		return err
+	}
+	r := buildCSVBuildingRunner(p)
+	e.Add(r)
+	return nil
+}
+
 func (e *engine) AddTradeParsing(concernedStates setlib.AssetStates, pair *pcommon.Pair) error {
 
 	date, err := e.generalDataParsingCheck(pair, concernedStates, pair.BuildTradesArchivesFilePath)
@@ -124,7 +134,7 @@ func (e *engine) AddTradeParsing(concernedStates setlib.AssetStates, pair *pcomm
 		return err
 	}
 
-	r := buildTradeParsingRunner(pair, date)
+	r := buildTradeParsingRunner(pair, concernedStates, date)
 	r.AddProcessCallback(func(engine *gorunner.Engine, runner *gorunner.Runner) {
 		if runner.Size().Max() > 0 && runner.GetError() == nil {
 			e.AddTradeParsing(concernedStates, pair)

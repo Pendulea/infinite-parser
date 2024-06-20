@@ -53,13 +53,7 @@ func main() {
 	go func() {
 		time.Sleep(time.Second * 2)
 		for _, set := range activeSets {
-			for _, asset := range set.Assets {
-				engine.Engine.AddTimeframeIndexing(asset, time.Second*15)
-			}
-
-			// for _, asset := range set.Assets {
-			// 	asset.PrintReadList()
-			// }
+			set.AddTimeframe(time.Hour*4, engine.Engine.AddTimeframeIndexing)
 		}
 	}()
 
