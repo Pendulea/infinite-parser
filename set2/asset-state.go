@@ -43,19 +43,17 @@ func (state *AssetState) DataT0() pcommon.TimeUnit {
 	return state.start
 }
 
-func (state *AssetState) SetStart(date string) {
-	t, err := pcommon.Format.StrDateToDate(date)
+func (state *AssetState) Copy(SetRef *Set, minDataDate string, id string, precision int8) *AssetState {
+	t, err := pcommon.Format.StrDateToDate(minDataDate)
 	if err != nil {
 		log.Fatal(err)
 	}
-	state.start = pcommon.NewTimeUnitFromTime(t)
-}
+	start := pcommon.NewTimeUnitFromTime(t)
 
-func (state *AssetState) Copy(SetRef *Set, id string, precision int8) *AssetState {
 	newState := AssetState{
 		key:       state.key,
 		t:         state.t,
-		start:     state.start,
+		start:     start,
 		id:        id,
 		SetRef:    SetRef,
 		readList:  newReadlistSet(),
@@ -96,4 +94,12 @@ func (state *AssetState) PrintReadList() {
 	}
 	fmt.Println()
 	fmt.Println()
+}
+
+func (state *AssetState) BuildArchiveFolderPath() string {
+	return fmt.Sprintf("%s/%s/%s", pcommon.Env.ARCHIVES_DIR, state.SetRef.ID(), state.ID())
+}
+
+func (state *AssetState) BuildArchiveFilePath(date string, ext string) string {
+	return fmt.Sprintf("%s/%s.%s", state.BuildArchiveFolderPath(), date, ext)
 }

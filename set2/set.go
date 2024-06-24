@@ -1,7 +1,9 @@
 package set2
 
 import (
+	"errors"
 	"log"
+	"pendulev2/dtype"
 	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
@@ -13,8 +15,7 @@ import (
 type Set struct {
 	initialized bool
 	Assets      map[string]*AssetState
-	id          string
-	dbPath      string
+	Settings    dtype.SetSettings
 	db          *badger.DB
 }
 
@@ -28,7 +29,6 @@ func (set *Set) RunValueLogGC() {
 		err := set.db.RunValueLogGC(0.5)
 		if err != nil {
 			if err == badger.ErrNoRewrite {
-				// No more space can be reclaimed
 				break
 			}
 			log.Printf("Error running value log GC: %v", err)
@@ -38,13 +38,16 @@ func (set *Set) RunValueLogGC() {
 }
 
 func (set *Set) ID() string {
-	return set.id
+	return set.Settings.IDString()
 }
 
-func NewSet(id string, dbPath string) (*Set, error) {
+func NewSet(settings dtype.SetSettings) (*Set, error) {
 	if err := pcommon.File.EnsureDir(pcommon.Env.DATABASES_DIR); err != nil {
 		return nil, err
 	}
+
+	id := settings.IDString()
+	dbPath := settings.DBPath()
 
 	options := badger.DefaultOptions(dbPath).WithLoggingLevel(badger.ERROR)
 	db, err := badger.Open(options)
@@ -55,23 +58,20 @@ func NewSet(id string, dbPath string) (*Set, error) {
 		"symbol": id,
 	}).Info("DB open")
 
-	return &Set{
-		db:          db,
-		initialized: false,
-		Assets:      make(map[string]*AssetState),
-		id:          id,
-		dbPath:      dbPath,
-	}, nil
-}
+	set := &Set{
+		db: db,
+	}
 
-func (set *Set) Init() {
-	if set.initialized {
-		return
+	set.Assets = make(map[string]*AssetState)
+	for _, asset := range settings.Assets {
+		a, ok := DEFAULT_ASSETS[asset.ID]
+		if !ok {
+			return nil, errors.New("Unknown asset: " + asset.ID)
+		}
+		set.Assets[asset.ID] = a.Copy(set, asset.MinDataDate, asset.ID, asset.Decimals)
 	}
 	set.initialized = true
-	if set.db == nil {
-		log.Fatal("DB is nil")
-	}
+	return set, nil
 }
 
 func (s *Set) Close() {

@@ -35,6 +35,7 @@ type Data interface {
 type DataList interface {
 	Aggregate(timeframe time.Duration, newTime pcommon.TimeUnit) Data
 	First() Data
+	ToRaw(decimals int8) map[pcommon.TimeUnit][]byte
 	Append(pt Data) DataList
 	Prepend(pt Data) DataList
 	Len() int
@@ -47,15 +48,15 @@ var UNIT_COLUNMS = []string{TIME, OPEN, HIGH, LOW, CLOSE, AVERAGE, MEDIAN, ABSOL
 var QUANTITY_COLUMNS = []string{TIME, PLUS, MINUS, PLUS_AVERAGE, MINUS_AVERAGE, PLUS_MEDIAN, MINUS_MEDIAN, PLUS_COUNT, MINUS_COUNT}
 var POINT_COLUMNS = []string{TIME, VALUE}
 
-func NewTypeTime(t DataType) Data {
+func NewTypeTime(t DataType, value float64, valueTime pcommon.TimeUnit) Data {
 	if t == UNIT {
-		return UnitTime{}
+		return NewUnit(value).ToTime(valueTime)
 	}
 	if t == QUANTITY {
-		return QuantityTime{}
+		return NewQuantity(value).ToTime(valueTime)
 	}
 	if t == POINT {
-		return PointTime{}
+		return newPoint(value).ToTime(valueTime)
 	}
 	return nil
 }

@@ -1,9 +1,8 @@
 package set2
 
 import (
+	"pendulev2/dtype"
 	"sync"
-
-	pcommon "github.com/pendulea/pendule-common"
 )
 
 type WorkingSets map[string]*Set
@@ -20,17 +19,17 @@ func (s *WorkingSets) Find(id string) *Set {
 	return v
 }
 
-func (s *WorkingSets) Add(pair pcommon.Pair) (*Set, error) {
+func (s *WorkingSets) Add(setting dtype.SetSettings) (*Set, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	id := pair.BuildSetID()
+	id := setting.IDString()
 
 	_, exist := (*s)[id]
 	if exist {
 		return nil, nil
 	}
 
-	set, err := NewSet(pair.BuildSetID(), pair.BuildDBPath())
+	set, err := NewSet(setting)
 	if err != nil {
 		return nil, err
 	}

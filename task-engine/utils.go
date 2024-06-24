@@ -1,15 +1,11 @@
 package engine
 
 import (
-	"errors"
 	"log"
-	"os"
-	setlib "pendulev2/set2"
 	"strings"
 	"time"
 
 	"github.com/fantasim/gorunner"
-	pcommon "github.com/pendulea/pendule-common"
 )
 
 const (
@@ -171,54 +167,49 @@ func haveSameTimeframe(r1, r2 *gorunner.Runner) bool {
 // 	return len(str) - decimalPos - 1
 // }
 
-func (e *engine) generalDataParsingCheck(pair *pcommon.Pair, concernedStates setlib.AssetStates, buildZipArchive func(string, string) string) (string, error) {
-	set := e.Sets.Find(pair.BuildSetID())
-	if set == nil {
-		return "", errors.New("set not found")
-	}
+// func (e *engine) generalStateParsing(concernedStates setlib.AssetStates) (string, error) {
+// 	leastConsistent, err := concernedStates.LeastConsistent(pcommon.Env.MIN_TIME_FRAME)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	date, err := leastConsistent.ShouldSync()
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	if date == nil {
+// 		return "", errors.New("already sync")
+// 	}
 
-	leastConsistent, err := concernedStates.LeastConsistent(pcommon.Env.MIN_TIME_FRAME)
-	if err != nil {
-		return "", err
-	}
-	date, err := leastConsistent.ShouldSync()
-	if err != nil {
-		return "", err
-	}
-	if date == nil {
-		return "", errors.New("already sync")
-	}
+// 	info, err := os.Stat(buildZipArchive(*date, "zip"))
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	if info.ModTime().Unix() > time.Now().Add(-time.Minute).Unix() {
+// 		return "", errors.New("file is too recent")
+// 	}
 
-	info, err := os.Stat(buildZipArchive(*date, "zip"))
-	if err != nil {
-		return "", err
-	}
-	if info.ModTime().Unix() > time.Now().Add(-time.Minute).Unix() {
-		return "", errors.New("file is too recent")
-	}
+// 	return *date, nil
+// }
 
-	return *date, nil
-}
+// func updateAllConsistencyTime(set *setlib.Set, stateIDs []string, date string) error {
+// 	dateTime, err := pcommon.Format.StrDateToDate(date)
+// 	if err != nil {
+// 		return err
+// 	}
 
-func updateAllConsistencyTime(set *setlib.Set, stateIDs []string, date string) error {
-	dateTime, err := pcommon.Format.StrDateToDate(date)
-	if err != nil {
-		return err
-	}
+// 	tx := set.Assets[stateIDs[0]].NewTX(true)
+// 	for _, id := range stateIDs {
+// 		if err := set.Assets[id].
+// 			SetNewConsistencyTime(
+// 				pcommon.Env.MIN_TIME_FRAME,
+// 				pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)),
+// 				tx); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	if err := tx.Commit(); err != nil {
+// 		return err
+// 	}
 
-	tx := set.Assets[stateIDs[0]].NewTX(true)
-	for _, id := range stateIDs {
-		if err := set.Assets[id].
-			SetNewConsistencyTime(
-				pcommon.Env.MIN_TIME_FRAME,
-				pcommon.NewTimeUnitFromTime(dateTime.Add(time.Hour*24)),
-				tx); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
-}
+// 	return nil
+// }

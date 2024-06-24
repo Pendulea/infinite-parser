@@ -55,7 +55,19 @@ func (lst PointTimeArray) Len() int {
 	return len(lst)
 }
 
+func (lst PointTimeArray) ToRaw(decimal int8) map[pcommon.TimeUnit][]byte {
+	ret := make(map[pcommon.TimeUnit][]byte)
+	for _, v := range lst {
+		ret[v.Time] = v.ToRaw(decimal)
+	}
+	return ret
+}
+
 func newPoint(v float64) Point {
+	if v == 0.00 {
+		return Point{}
+	}
+
 	return Point{Value: v}
 }
 

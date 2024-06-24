@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"pendulev2/pairs"
+	manager "pendulev2/set-manager"
 	setlib "pendulev2/set2"
 	engine "pendulev2/task-engine"
 
@@ -45,7 +45,7 @@ func main() {
 		log.Fatal("CSV_DIR is not set")
 	}
 
-	pairs.Init(&activeSets, os.Getenv("PAIRS_PATH"))
+	manager.Init(&activeSets, os.Getenv("SETS_PATH"))
 	// rpc.Init(&activeSets, pairs.Init(&activeSets, os.Getenv("PAIRS_PATH")))
 	// go initWS()
 	go initScheduleAutoCSVDelete()
@@ -72,13 +72,13 @@ func main() {
 		// 	}
 		// }
 
-		s := engine.CSVBuildingOrderPacked{From: 1587607445, To: 1687607455, Timeframe: 1000}
-		s.Orders = make([][]string, 0)
-		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "volume", "plus", "minus", "time"})
-		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "price", "open", "high", "time", "average"})
-		if err := engine.Engine.AddCSVBuilding(s); err != nil {
-			fmt.Println(err)
-		}
+		// s := engine.CSVBuildingOrderPacked{From: 1587607445, To: 1687607455, Timeframe: 1000}
+		// s.Orders = make([][]string, 0)
+		// s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "volume", "plus", "minus", "time"})
+		// s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "price", "open", "high", "time", "average"})
+		// if err := engine.Engine.AddCSVBuilding(s); err != nil {
+		// 	fmt.Println(err)
+		// }
 		// set.AddTimeframe(time.Hour*4, engine.Engine.AddTimeframeIndexing)
 	}()
 

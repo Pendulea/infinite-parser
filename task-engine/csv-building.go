@@ -477,7 +477,7 @@ func (parameters CSVBuildingOrder) createCSVLine(listData *map[string]dtype.Data
 		if first.GetTime() == minTime {
 			assetLine = list.First().CSVLine(order.Asset.SetAndAssetID(), precision, columns)
 		} else {
-			assetLine = dtype.NewTypeTime(order.Asset.Type()).CSVLine(order.Asset.SetAndAssetID(), precision, columns)
+			assetLine = dtype.NewTypeTime(order.Asset.Type(), 0, 0).CSVLine(order.Asset.SetAndAssetID(), precision, columns)
 		}
 
 		line = append(line, assetLine...)
