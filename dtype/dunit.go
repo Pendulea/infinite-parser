@@ -93,6 +93,36 @@ func getPrecision(val float64) int {
 	return len(str) - decimalPos - 1
 }
 
+func (lst UnitTimeArray) Append(pt Data) DataList {
+	return append(lst, pt.(UnitTime))
+}
+
+func (lst UnitTimeArray) Prepend(pt Data) DataList {
+	return append(UnitTimeArray{pt.(UnitTime)}, lst...)
+}
+
+func (lst UnitTimeArray) First() Data {
+	if len(lst) == 0 {
+		return nil
+	}
+	ret := lst[0]
+	return &ret
+}
+
+func (lst UnitTimeArray) RemoveFirstN(n int) DataList {
+	if n >= len(lst) {
+		return PointTimeArray{}
+	}
+	return lst[n:]
+}
+
+func (lst UnitTimeArray) Len() int {
+	if lst == nil {
+		return 0
+	}
+	return len(lst)
+}
+
 func (list UnitTimeArray) Aggregate(timeframe time.Duration, newTime pcommon.TimeUnit) Data {
 	ret := UnitTime{Time: newTime}
 	closes := []float64{}
@@ -204,6 +234,10 @@ func (p Unit) ToTime(time pcommon.TimeUnit) UnitTime {
 	}
 }
 
+func (p UnitTime) GetTime() pcommon.TimeUnit {
+	return p.Time
+}
+
 func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckListRequirement) []string {
 	ret := []string{}
 
@@ -220,7 +254,7 @@ func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckList
 	}
 
 	if requirement[OPEN] {
-		if q.Count > 1 {
+		if q.Count >= 1 {
 			ret = append(ret, pcommon.Format.Float(q.Open, decimals))
 		} else {
 			ret = append(ret, "")
@@ -228,7 +262,7 @@ func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckList
 	}
 
 	if requirement[HIGH] {
-		if q.Count > 1 {
+		if q.Count >= 1 {
 			ret = append(ret, pcommon.Format.Float(q.High, decimals))
 		} else {
 			ret = append(ret, "")
@@ -236,7 +270,7 @@ func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckList
 	}
 
 	if requirement[LOW] {
-		if q.Count > 1 {
+		if q.Count >= 1 {
 			ret = append(ret, pcommon.Format.Float(q.Low, decimals))
 		} else {
 			ret = append(ret, "")
@@ -244,7 +278,7 @@ func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckList
 	}
 
 	if requirement[CLOSE] {
-		if q.Count > 0 {
+		if q.Count >= 1 {
 			ret = append(ret, pcommon.Format.Float(q.Close, decimals))
 		} else {
 			ret = append(ret, "")
@@ -252,7 +286,7 @@ func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckList
 	}
 
 	if requirement[AVERAGE] {
-		if q.Count > 1 {
+		if q.Count >= 1 {
 			ret = append(ret, pcommon.Format.Float(q.Average, decimals))
 		} else {
 			ret = append(ret, "")
@@ -260,7 +294,7 @@ func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckList
 	}
 
 	if requirement[MEDIAN] {
-		if q.Count > 1 {
+		if q.Count >= 1 {
 			ret = append(ret, pcommon.Format.Float(q.Median, decimals))
 		} else {
 			ret = append(ret, "")

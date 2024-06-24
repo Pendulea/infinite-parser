@@ -72,10 +72,10 @@ func main() {
 		// 	}
 		// }
 
-		s := engine.CSVBuildingOrderPacked{From: 1587607200, To: 1587608000, Timeframe: 1000}
+		s := engine.CSVBuildingOrderPacked{From: 1587607445, To: 1687607455, Timeframe: 1000}
 		s.Orders = make([][]string, 0)
-		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "price", "open", "high", "time", "average"})
 		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "volume", "plus", "minus", "time"})
+		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "price", "open", "high", "time", "average"})
 		if err := engine.Engine.AddCSVBuilding(s); err != nil {
 			fmt.Println(err)
 		}

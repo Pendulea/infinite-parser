@@ -58,10 +58,10 @@ func (cbo *CSVBuildingOrder) ID() string {
 }
 
 type CSVBuildingOrderPacked struct {
-	From      int64      //In unix seconds
-	To        int64      //In unix seconds
-	Timeframe int64      //In milliseconds
-	Orders    [][]string // [setID, assetID, columns...]
+	From      int64      `json:"from"`      //In unix seconds `json:"from"`
+	To        int64      `json:"to"`        //In unix seconds
+	Timeframe int64      `json:"timeframe"` //In milliseconds
+	Orders    [][]string `json:"orders"`    // [setID, assetID, columns...]
 }
 
 func parsePackedOrder(sets setlib.WorkingSets, order CSVBuildingOrderPacked) (*CSVBuildingOrder, error) {
@@ -120,7 +120,7 @@ func parsePackedOrder(sets setlib.WorkingSets, order CSVBuildingOrderPacked) (*C
 	}
 
 	orders = lo.UniqBy(orders, func(order CSVAssetOrder) string {
-		return order.Asset.SetRef.ID() + ":" + order.Asset.ID()
+		return order.Asset.SetAndAssetID()
 	})
 
 	//order asc by theirs asset ID and state id
@@ -143,7 +143,21 @@ type CSVStatus struct {
 	AssetStateIDs  []string         `json:"asset_state_ids"`
 }
 
-func buildCSVStatus(runner *gorunner.Runner, parameters *CSVBuildingOrder) CSVStatus {
+func runnerStatusString(runner *gorunner.Runner) string {
+	if !runner.HasStarted() {
+		return "SCHEDULED"
+	} else if !runner.IsDone() {
+		switch runner.CountSteps() {
+		case 0:
+			return "WRITING"
+		case 1:
+			return "ZIPPING"
+		}
+	}
+	return "DONE"
+}
+
+func (parameters *CSVBuildingOrder) Status(runner *gorunner.Runner) CSVStatus {
 	buildID := parameters.ID()
 
 	status := CSVStatus{
@@ -151,31 +165,11 @@ func buildCSVStatus(runner *gorunner.Runner, parameters *CSVBuildingOrder) CSVSt
 	}
 
 	status.Percent = runner.Percent()
-
-	if !runner.HasStarted() {
-		status.Status = "SCHEDULED"
-	} else if runner.HasStarted() && !runner.IsDone() {
-		if runner.CountSteps() == 0 {
-			status.Status = "WRITTING"
-		}
-		if runner.CountSteps() == 1 {
-			status.Percent = 99.99
-			status.Status = "ZIPPING"
-		}
-	} else if runner.IsDone() {
-		status.Percent = 99.99
-		status.Status = "DONE"
-	}
-
-	if runner.HasStarted() {
-		status.Size = runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)
-	}
-
+	status.Status = runnerStatusString(runner)
+	status.Size = runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)
 	status.From = parameters.From
 	status.To = parameters.To
-
 	status.TimeframeLabel, _ = pcommon.Format.TimeFrameToLabel(parameters.Timeframe)
-
 	status.AssetStateIDs = lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) string {
 		return order.Asset.SetAndAssetID()
 	})
@@ -184,36 +178,30 @@ func buildCSVStatus(runner *gorunner.Runner, parameters *CSVBuildingOrder) CSVSt
 }
 
 func printBuildCSVStatus(runner *gorunner.Runner, parameter *CSVBuildingOrder) {
+	csvStatus := parameter.Status(runner)
 
-	csvStatus := buildCSVStatus(runner, parameter)
-
-	if runner.CountSteps() == 0 {
+	switch runner.CountSteps() {
+	case 0:
 		log.WithFields(log.Fields{
 			"progress": fmt.Sprintf("%.2f%%", runner.Percent()),
 			"buildID":  csvStatus.BuildID,
 			"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-		}).Info(fmt.Sprintf("Building CSV archive for %s", ""))
-	}
-
-	if runner.CountSteps() == 1 {
-
+		}).Info("Building CSV archive")
+	case 1:
 		log.WithFields(log.Fields{
 			"size":    pcommon.Format.LargeBytesToShortString(runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)),
 			"buildID": csvStatus.BuildID,
-		}).Info(fmt.Sprintf("Zipping CSV archive for %s", ""))
-	}
-
-	if runner.CountSteps() == 2 {
-
+		}).Info("Zipping CSV archive")
+	case 2:
 		log.WithFields(log.Fields{
 			"size":    pcommon.Format.LargeBytesToShortString(runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)),
 			"buildID": csvStatus.BuildID,
 			"done":    "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-		}).Info(fmt.Sprintf("Successfully built CSV for %s", ""))
+		}).Info("Successfully built CSV")
 	}
 }
 
-func BuildCSVFolderPath() string {
+func (parameters *CSVBuildingOrder) BuildCSVArchiveFolderPath() string {
 	dir := os.Getenv("CSV_DIR")
 	if dir == "" {
 		log.Fatal("CSV_DIR is not set")
@@ -221,53 +209,178 @@ func BuildCSVFolderPath() string {
 	if err := pcommon.File.EnsureDir(dir); err != nil {
 		log.Fatal("Error creating CSV_DIR folder")
 	}
-	return dir
-}
 
-func BuildCSVArchiveFolderPath(buildID string) string {
-	p := filepath.Join(BuildCSVFolderPath(), buildID)
+	id := parameters.ID()
+	p := filepath.Join(dir, id)
 	if err := pcommon.File.EnsureDir(p); err != nil {
 		log.Fatal("Error creating CSV archive folder")
 	}
 	return p
 }
 
-func buildCSV(runner *gorunner.Runner, parameters *CSVBuildingOrder) error {
+func (parameters *CSVBuildingOrder) buildQuerySummaryFile(runner *gorunner.Runner) error {
+	status := parameters.Status(runner)
 
+	lineWritten := runner.StatValue(STAT_VALUE_LINE_COUNT)
+
+	setIDs := lo.Uniq(lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) string {
+		return order.Asset.SetRef.ID()
+	}))
+
+	content := fmt.Sprintf("Timeframe: %s\nBetween: %s 00:00:00 and %s\n\n", status.TimeframeLabel,
+		parameters.From.ToTime().UTC().Format("2006-01-02"),
+		parameters.To.ToTime().UTC().Format("2006-01-02 15:04:05"))
+
+	for _, setID := range setIDs {
+		listFullColumns := []string{}
+		for _, order := range parameters.Orders {
+			if order.Asset.SetRef.ID() == setID {
+				listFullColumns = append(listFullColumns, "- "+order.Asset.ID()+" : "+strings.Join(order.Columns.Columns(), ", "))
+			}
+		}
+		content += fmt.Sprintf("%s:\n%s\n", setID, strings.Join(listFullColumns, "\n"))
+	}
+	content += fmt.Sprintf("\n\nTotal lines: %s\n", pcommon.Format.LargeNumberToShortString(lineWritten))
+
+	queryFile := filepath.Join(parameters.BuildCSVArchiveFolderPath(), "query.txt")
+	return util.WriteToFile(queryFile, content)
+}
+
+func buildCSV(runner *gorunner.Runner, parameters *CSVBuildingOrder) error {
 	runner.SetSize().Initial(parameters.From.Int())
 	runner.SetSize().Max(parameters.To.Int())
 
+	header := parameters.buildCSVHeader()
+	froms := parameters.buildOrderFromTimes()
+
+	go parameters.monitorProgress(runner)
+
+	file, writer, err := createCSVFile(parameters.BuildCSVArchiveFolderPath(), 0, header)
+	if err != nil {
+		return err
+	}
+	defer closeCSVFile(writer, file)
+
+	for turn, fileCount, cumulatedWrittenSize := 0, 0, int64(0); ; turn++ {
+		listData, stopErr := parameters.fetchOrderData(&froms)
+		if stopErr != nil {
+			return stopErr
+		}
+
+		lines := parameters.collectLines(&listData)
+		if len(lines) == 0 {
+			break
+		}
+
+		if err := writeCSVLines(writer, lines, &froms, &cumulatedWrittenSize, runner); err != nil {
+			return err
+		}
+
+		if cumulatedWrittenSize > MAX_SIZE_CSV_FILE_BYTES {
+			if err := closeCSVFile(writer, file); err != nil {
+				return err
+			}
+			fileCount++
+			file, writer, err = createCSVFile(parameters.BuildCSVArchiveFolderPath(), fileCount, header)
+			if err != nil {
+				return err
+			}
+			cumulatedWrittenSize = 0
+		}
+	}
+
+	if closeCSVFile(writer, file); err != nil {
+		return err
+	}
+
+	runner.AddStep()
+	if err := parameters.buildQuerySummaryFile(runner); err != nil {
+		return err
+	}
+	if err := parameters.zipCSVArchive(); err != nil {
+		return err
+	}
+	runner.AddStep()
+	go os.RemoveAll(parameters.BuildCSVArchiveFolderPath())
+	printBuildCSVStatus(runner, parameters)
+	return nil
+}
+
+func (parameters *CSVBuildingOrder) zipCSVArchive() error {
+	folderPath := parameters.BuildCSVArchiveFolderPath()
+	return pcommon.File.ZipDirectory(folderPath, folderPath+".zip")
+}
+
+func (parameters *CSVBuildingOrder) buildCSVHeader() []string {
 	headerDouble := lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) []string {
 		return order.Asset.Type().Header(order.Asset.SetAndAssetID(), order.Columns)
 	})
-	header := []string{}
+	var header []string
 	for _, h := range headerDouble {
 		header = append(header, h...)
 	}
+	return header
+}
 
+func (parameters *CSVBuildingOrder) buildOrderFromTimes() []pcommon.TimeUnit {
+	froms := make([]pcommon.TimeUnit, len(parameters.Orders))
+	for i, order := range parameters.Orders {
+		minFrom := order.Asset.DataT0()
+		froms[i] = pcommon.TimeUnit(math.Max(float64(minFrom), float64(parameters.From)))
+	}
+	return froms
+}
+
+func (parameters *CSVBuildingOrder) monitorProgress(runner *gorunner.Runner) {
+	time.Sleep(2 * time.Second)
+	for runner.Task.IsRunning() {
+		printBuildCSVStatus(runner, parameters)
+		time.Sleep(5 * time.Second)
+	}
+}
+func createCSVFile(folderPath string, fileCount int, header []string) (*os.File, *csv.Writer, error) {
+	csvFilePath := filepath.Join(folderPath, fmt.Sprintf("%d.csv", fileCount))
+	file, err := os.Create(csvFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	writer := csv.NewWriter(file)
+	if err := writer.Write(header); err != nil {
+		return nil, nil, err
+	}
+	return file, writer, nil
+}
+
+func closeCSVFile(writer *csv.Writer, file *os.File) error {
+	writer.Flush()
+	return file.Close()
+}
+
+func (parameters CSVBuildingOrder) fetchOrderData(froms *[]pcommon.TimeUnit) (map[string]dtype.DataList, error) {
 	wg := sync.WaitGroup{}
-	orders := parameters.Orders
+	mu := sync.Mutex{}
+	listData := make(map[string]dtype.DataList)
 
-	froms := make([]pcommon.TimeUnit, len(orders))
-
-	muFrom := sync.RWMutex{}
-	getFrom := func(pos int) pcommon.TimeUnit {
-		muFrom.RLock()
-		defer muFrom.RUnlock()
-		return froms[pos]
-	}
-	setNewFrom := func(pos int, newFrom pcommon.TimeUnit) {
-		muFrom.Lock()
-		defer muFrom.Unlock()
-		froms[pos] = newFrom
-	}
-
-	var stopErr error = nil
+	var stopErr error
 	muStopErr := sync.RWMutex{}
 	setStopErr := func(err error) {
 		muStopErr.Lock()
 		defer muStopErr.Unlock()
 		stopErr = err
+	}
+
+	getFromTime := func(pos int) pcommon.TimeUnit {
+		muFrom := sync.RWMutex{}
+		muFrom.RLock()
+		defer muFrom.RUnlock()
+		return (*froms)[pos]
+	}
+
+	setNewFromTime := func(pos int, newFrom pcommon.TimeUnit) {
+		muFrom := sync.RWMutex{}
+		muFrom.Lock()
+		defer muFrom.Unlock()
+		(*froms)[pos] = newFrom
 	}
 
 	BATCH_LIMIT := 50_000
@@ -279,214 +392,123 @@ func buildCSV(runner *gorunner.Runner, parameters *CSVBuildingOrder) error {
 
 	interval := time.Duration(BATCH_LIMIT) * parameters.Timeframe
 
-	for i, order := range orders {
-		minFrom := order.Asset.DataT0()
-		froms[i] = pcommon.TimeUnit(math.Max(float64(minFrom), float64(parameters.From)))
+	for i, order := range parameters.Orders {
+		wg.Add(1)
+		go func(pos int, state *setlib.AssetState) {
+			defer wg.Done()
+			from := getFromTime(pos)
+			if from > parameters.To {
+				return
+			}
+
+			to := from.Add(interval)
+			data, err := state.GetInDataRange(from, to, parameters.Timeframe, nil, nil)
+			if err != nil {
+				setStopErr(err)
+				return
+			}
+
+			setNewFromTime(pos, to)
+			if len := data.Len(); len == 0 {
+				setNewFromTime(pos, to+1)
+				return
+			}
+
+			mu.Lock()
+			listData[state.SetAndAssetID()] = data
+			mu.Unlock()
+		}(i, order.Asset)
+	}
+	wg.Wait()
+	if stopErr != nil {
+		return nil, stopErr
 	}
 
-	turn := 0
-	fileCount := 0
-	cumulatedWrittenSize := 0
-	var cumulatedMemorizedSize int64 = 0
+	return listData, nil
+}
 
-	var file *os.File = nil
-	var writer *csv.Writer = nil
-
-	go func() {
-		time.Sleep(time.Second * 2)
-		for runner.Task.IsRunning() {
-			printBuildCSVStatus(runner, parameters)
-			time.Sleep(5 * time.Second)
-		}
-	}()
+func (parameters *CSVBuildingOrder) collectLines(listData *map[string]dtype.DataList) []string {
+	var lines []string
 
 	for {
-		wg.Add(len(orders))
-		listData := map[string]dtype.DataList{}
-
-		for i, order := range orders {
-			go func(pos int, state *setlib.AssetState) {
-				defer wg.Done()
-				from := getFrom(pos)
-				if from > parameters.To {
-					return
-				}
-
-				to := from.Add(interval)
-				list, err := state.GetInDataRange(from, to, parameters.Timeframe, nil, nil)
-				if err != nil {
-					setStopErr(err)
-					return
-				}
-				setNewFrom(pos, to)
-				lengt, _ := util.Len(list)
-				if lengt == 0 {
-					setNewFrom(pos, parameters.To+1)
-					return
-				}
-				listData[state.SetAndAssetID()] = list
-			}(i, order.Asset)
-		}
-		wg.Wait()
-		if stopErr != nil {
-			return stopErr
-		}
-
-		totalSingleData := 0
-		for _, list := range listData {
-			l, err := util.Len(list)
-			if err != nil {
-				return err
-			}
-			totalSingleData += l
-		}
-		if totalSingleData == 0 {
+		minTime, minTimeState := parameters.findMinTimeState(listData)
+		if minTime > parameters.To || minTimeState == "" {
 			break
 		}
 
-		lines := []string{}
-		for {
-			minTime := pcommon.NewTimeUnitFromTime(time.Now())
-			minTimeState := ""
-
-			for _, order := range orders {
-				list := listData[order.Asset.SetAndAssetID()]
-				if l, _ := util.Len(list); l == 0 {
-					continue
-				}
-
-				if order.Asset.IsPoint() {
-					cast := list.(dtype.PointTimeArray)
-					p := cast[0]
-					if p.Time < minTime {
-						minTime = p.Time
-						minTimeState = order.Asset.SetAndAssetID()
-					}
-				} else if order.Asset.IsUnit() {
-					cast := list.(dtype.UnitTimeArray)
-					u := cast[0]
-					if u.Time < minTime {
-						minTime = u.Time
-						minTimeState = order.Asset.SetAndAssetID()
-					}
-				} else if order.Asset.IsQuantity() {
-					cast := list.(dtype.QuantityTimeArray)
-					q := cast[0]
-					if q.Time < minTime {
-						minTime = q.Time
-						minTimeState = order.Asset.SetAndAssetID()
-					}
-				}
-			}
-
-			if minTime > parameters.To || minTimeState == "" {
-				break
-			}
-
-			line := []string{}
-			for _, order := range orders {
-				precision := order.Asset.Precision()
-				assetStateID := order.Asset.SetAndAssetID()
-
-				list := listData[assetStateID]
-				if l, _ := util.Len(list); l == 0 {
-					continue
-				}
-
-				if order.Asset.IsPoint() {
-					cast := list.(dtype.PointTimeArray)
-					p := cast[0]
-					if p.Time == minTime {
-						line = append(line, p.CSVLine(assetStateID, precision, order.Columns)...)
-						listData[assetStateID] = cast[1:]
-					} else {
-						line = append(line, dtype.PointTime{}.CSVLine(assetStateID, precision, order.Columns)...)
-					}
-				} else if order.Asset.IsUnit() {
-					cast := list.(dtype.UnitTimeArray)
-					u := cast[0]
-					if u.Time == minTime {
-						line = append(line, u.CSVLine(assetStateID, precision, order.Columns)...)
-						listData[assetStateID] = cast[1:]
-					} else {
-						line = append(line, dtype.UnitTime{}.CSVLine(assetStateID, precision, order.Columns)...)
-					}
-				} else if order.Asset.IsQuantity() {
-					cast := list.(dtype.QuantityTimeArray)
-					q := cast[0]
-					if q.Time == minTime {
-						line = append(line, q.CSVLine(assetStateID, precision, order.Columns)...)
-						listData[assetStateID] = cast[1:]
-					} else {
-						line = append(line, dtype.QuantityTime{}.CSVLine(assetStateID, precision, order.Columns)...)
-					}
-				}
-			}
-			lines = append(lines, strings.Join(line, ","))
-		}
-
-		if len(lines) == 0 {
-			break
-		}
-
-		var err error = nil
-
-		if cumulatedWrittenSize == 0 {
-			csvFilePath := filepath.Join(BuildCSVArchiveFolderPath(parameters.ID()), fmt.Sprintf("%d.csv", fileCount))
-			file, err = os.Create(csvFilePath)
-			if err != nil {
-				return err
-			}
-			writer = csv.NewWriter(file)
-			if err := writer.Write(header); err != nil {
-				return err
-			}
-			headerSize := len(strings.Join(header, ",")) + 1
-			cumulatedWrittenSize += headerSize
-			runner.IncrementStatValue(STAT_VALUE_ARCHIVE_SIZE, int64(headerSize))
-		}
-
-		linesSize := 0
-		for _, line := range lines {
-			linesSize += len(line) + 1
-			if err := writer.Write(strings.Split(line, ",")); err != nil {
-				return err
-			}
-		}
-		cumulatedWrittenSize += linesSize
-		// runner.SetSize().Current(newFrom.Int(), false)
-		runner.IncrementStatValue(STAT_VALUE_ARCHIVE_SIZE, int64(linesSize))
-		runner.IncrementStatValue(STAT_VALUE_LINE_COUNT, int64(len(lines)))
-
-		if cumulatedMemorizedSize > MAX_SIZE_CSV_FILE_BYTES {
-			writer.Flush()
-		}
-
-		if int64(cumulatedWrittenSize) > MAX_SIZE_CSV_FILE_BYTES {
-			if err := file.Close(); err != nil {
-				return err
-			}
-			writer.Flush()
-			fileCount++
-			cumulatedWrittenSize = 0
-		}
-		turn++
+		line := parameters.createCSVLine(listData, minTime)
+		lines = append(lines, strings.Join(line, ","))
 	}
 
-	if file != nil {
-		writer.Flush()
-		file.Close()
-	}
+	return lines
+}
 
-	runner.AddStep()
-	folderPath := BuildCSVArchiveFolderPath(parameters.ID())
-	if err := pcommon.File.ZipDirectory(folderPath, folderPath+".zip"); err != nil {
-		return err
+func (parameters *CSVBuildingOrder) findMinTimeState(listData *map[string]dtype.DataList) (pcommon.TimeUnit, string) {
+	minTime := pcommon.NewTimeUnitFromTime(time.Now())
+	var minTimeState string
+
+	for _, order := range parameters.Orders {
+		list := (*listData)[order.Asset.SetAndAssetID()]
+		if list == nil || list.Len() == 0 {
+			continue
+		}
+		first := list.First()
+		if first.GetTime() < minTime {
+			minTime, minTimeState = first.GetTime(), order.Asset.SetAndAssetID()
+		}
 	}
-	runner.AddStep()
-	go os.RemoveAll(folderPath)
-	printBuildCSVStatus(runner, parameters)
+	return minTime, minTimeState
+}
+
+func (parameters CSVBuildingOrder) createCSVLine(listData *map[string]dtype.DataList, minTime pcommon.TimeUnit) []string {
+	var line []string
+
+	for _, order := range parameters.Orders {
+		assetStateID := order.Asset.SetAndAssetID()
+		list := (*listData)[assetStateID]
+		if list == nil || list.Len() == 0 {
+			continue
+		}
+		first := list.First()
+		precision := order.Asset.Precision()
+		columns := order.Columns
+
+		var assetLine []string
+		if first.GetTime() == minTime {
+			assetLine = list.First().CSVLine(order.Asset.SetAndAssetID(), precision, columns)
+		} else {
+			assetLine = dtype.NewTypeTime(order.Asset.Type()).CSVLine(order.Asset.SetAndAssetID(), precision, columns)
+		}
+
+		line = append(line, assetLine...)
+		(*listData)[assetStateID] = (*listData)[assetStateID].RemoveFirstN(1)
+	}
+	return line
+}
+
+func writeCSVLines(writer *csv.Writer, lines []string, froms *[]pcommon.TimeUnit, cumulatedWrittenSize *int64, runner *gorunner.Runner) error {
+	linesSize := 0
+	for _, line := range lines {
+		linesSize += len(line) + 1
+		if err := writer.Write(strings.Split(line, ",")); err != nil {
+			return err
+		}
+	}
+	*cumulatedWrittenSize += int64(linesSize)
+	runner.SetSize().Current(getLeastFromTime(*froms).Int(), false)
+	runner.IncrementStatValue(STAT_VALUE_ARCHIVE_SIZE, int64(linesSize))
+	runner.IncrementStatValue(STAT_VALUE_LINE_COUNT, int64(len(lines)))
 	return nil
+}
+
+func getLeastFromTime(froms []pcommon.TimeUnit) pcommon.TimeUnit {
+	min := pcommon.TimeUnit(math.MaxInt64)
+	for _, from := range froms {
+		if from < min {
+			min = from
+		}
+	}
+	return min
 }
 
 func buildCSVBuildingRunner(parameters *CSVBuildingOrder) *gorunner.Runner {
@@ -496,7 +518,6 @@ func buildCSVBuildingRunner(parameters *CSVBuildingOrder) *gorunner.Runner {
 	fullIDs := lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) string {
 		return order.Asset.SetAndAssetID()
 	})
-	fmt.Println(fullIDs)
 
 	addAssetAndSetIDs(runner, fullIDs)
 	addTimeframe(runner, parameters.Timeframe)

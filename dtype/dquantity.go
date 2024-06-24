@@ -76,6 +76,35 @@ func NewQuantity(v float64) Quantity {
 	return ret
 }
 
+func (lst QuantityTimeArray) Append(pt Data) DataList {
+	return append(lst, pt.(QuantityTime))
+}
+
+func (lst QuantityTimeArray) Prepend(pt Data) DataList {
+	return append(QuantityTimeArray{pt.(QuantityTime)}, lst...)
+}
+
+func (lst QuantityTimeArray) First() Data {
+	if len(lst) == 0 {
+		return nil
+	}
+	return &lst[0]
+}
+
+func (lst QuantityTimeArray) Len() int {
+	if lst == nil {
+		return 0
+	}
+	return len(lst)
+}
+
+func (lst QuantityTimeArray) RemoveFirstN(n int) DataList {
+	if n >= len(lst) {
+		return PointTimeArray{}
+	}
+	return lst[n:]
+}
+
 func (list QuantityTimeArray) Aggregate(timeframe time.Duration, newTime pcommon.TimeUnit) Data {
 	ret := QuantityTime{Time: newTime}
 
@@ -166,6 +195,10 @@ func (q Quantity) ToTime(time pcommon.TimeUnit) QuantityTime {
 		Quantity: q,
 		Time:     time,
 	}
+}
+
+func (p QuantityTime) GetTime() pcommon.TimeUnit {
+	return p.Time
 }
 
 func (q QuantityTime) CSVLine(prefix string, volumeDecimals int8, requiremment CSVCheckListRequirement) []string {

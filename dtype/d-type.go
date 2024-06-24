@@ -1,6 +1,7 @@
 package dtype
 
 import (
+	"errors"
 	"sort"
 	"time"
 
@@ -28,10 +29,16 @@ type Data interface {
 	ToRaw(decimals int8) []byte
 	IsEmpty() bool
 	Type() DataType
+	GetTime() pcommon.TimeUnit
 }
 
 type DataList interface {
 	Aggregate(timeframe time.Duration, newTime pcommon.TimeUnit) Data
+	First() Data
+	Append(pt Data) DataList
+	Prepend(pt Data) DataList
+	Len() int
+	RemoveFirstN(n int) DataList
 }
 
 type DataType int8
@@ -39,6 +46,49 @@ type DataType int8
 var UNIT_COLUNMS = []string{TIME, OPEN, HIGH, LOW, CLOSE, AVERAGE, MEDIAN, ABSOLUTE_SUM, COUNT}
 var QUANTITY_COLUMNS = []string{TIME, PLUS, MINUS, PLUS_AVERAGE, MINUS_AVERAGE, PLUS_MEDIAN, MINUS_MEDIAN, PLUS_COUNT, MINUS_COUNT}
 var POINT_COLUMNS = []string{TIME, VALUE}
+
+func NewTypeTime(t DataType) Data {
+	if t == UNIT {
+		return UnitTime{}
+	}
+	if t == QUANTITY {
+		return QuantityTime{}
+	}
+	if t == POINT {
+		return PointTime{}
+	}
+	return nil
+}
+
+func NewTypeTimeArray(t DataType) DataList {
+	if t == UNIT {
+		return UnitTimeArray{}
+	}
+	if t == QUANTITY {
+		return QuantityTimeArray{}
+	}
+	if t == POINT {
+		return PointTimeArray{}
+	}
+	return nil
+}
+
+func ParseTypeData(t DataType, d []byte, dataTime pcommon.TimeUnit) (Data, error) {
+	if t == UNIT {
+		return ParseRawUnit(d).ToTime(dataTime), nil
+	}
+	if t == QUANTITY {
+		return ParseRawQuantity(d).ToTime(dataTime), nil
+	}
+	if t == POINT {
+		p, err := ParseRawPoint(d)
+		if err != nil {
+			return nil, err
+		}
+		return p.ToTime(dataTime), nil
+	}
+	return nil, errors.New("unknown data type")
+}
 
 // units are data that can be aggregated around a candle (open, close, high, low, etc)
 const UNIT DataType = 1

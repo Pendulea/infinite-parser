@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"reflect"
 	"time"
 	"unsafe"
@@ -116,4 +117,14 @@ func Len(slice interface{}) (int, error) {
 		return v.Len(), nil
 	}
 	return 0, fmt.Errorf("provided value is not a slice or array")
+}
+
+func WriteToFile(filename, content string) error {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.WriteString(content)
+	return err
 }

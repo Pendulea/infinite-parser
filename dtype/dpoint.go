@@ -26,6 +26,35 @@ func (lst PointTimeArray) Aggregate(timeframe time.Duration, newTime pcommon.Tim
 	return PointTime{}
 }
 
+func (lst PointTimeArray) Append(pt Data) DataList {
+	return append(lst, pt.(PointTime))
+}
+
+func (lst PointTimeArray) Prepend(pt Data) DataList {
+	return append(PointTimeArray{pt.(PointTime)}, lst...)
+}
+
+func (lst PointTimeArray) RemoveFirstN(n int) DataList {
+	if n >= len(lst) {
+		return PointTimeArray{}
+	}
+	return lst[n:]
+}
+
+func (lst PointTimeArray) First() Data {
+	if len(lst) == 0 {
+		return nil
+	}
+	return &lst[0]
+}
+
+func (lst PointTimeArray) Len() int {
+	if lst == nil {
+		return 0
+	}
+	return len(lst)
+}
+
 func newPoint(v float64) Point {
 	return Point{Value: v}
 }
@@ -38,7 +67,7 @@ func (m Point) IsEmpty() bool {
 	return m.Value == 0.00
 }
 
-func ParsePoint(d []byte) (Point, error) {
+func ParseRawPoint(d []byte) (Point, error) {
 	if len(d) == 0 {
 		return Point{}, nil
 	}
@@ -55,6 +84,10 @@ func (p Point) ToTime(time pcommon.TimeUnit) PointTime {
 
 func (p Point) ToRaw(decimals int8) []byte {
 	return []byte(pcommon.Format.Float(p.Value, decimals))
+}
+
+func (p PointTime) GetTime() pcommon.TimeUnit {
+	return p.Time
 }
 
 func (m PointTime) CSVLine(prefix string, volumeDecimals int8, requirement CSVCheckListRequirement) []string {
