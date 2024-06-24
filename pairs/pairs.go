@@ -161,7 +161,12 @@ func (pm *PairManager) Add(pair pcommon.Pair, firstTimeAdd bool) error {
 
 		//initialize states
 		for name, asset := range setlib.DEFAULT_ASSETS {
-			set.Assets[name] = asset.Copy(set, name, pair.VolumeDecimals)
+			var decimals int8 = -1
+			if name == setlib.VOLUME {
+				decimals = pair.VolumeDecimals
+			}
+
+			set.Assets[name] = asset.Copy(set, name, decimals)
 			if name == setlib.PRICE || name == setlib.VOLUME {
 				set.Assets[name].SetStart(pair.MinHistoricalDay)
 			} else if strings.HasPrefix(name, "bd-") {
@@ -184,11 +189,11 @@ func (pm *PairManager) Add(pair pcommon.Pair, firstTimeAdd bool) error {
 		tradeStates := setlib.AssetStates{set.Assets[setlib.PRICE], set.Assets[setlib.VOLUME]}
 		engine.Engine.AddTradeParsing(tradeStates, &pair)
 
-		bookDepthStates := setlib.AssetStates{set.Assets[setlib.BOOK_DEPTH_M1], set.Assets[setlib.BOOK_DEPTH_M2], set.Assets[setlib.BOOK_DEPTH_M3], set.Assets[setlib.BOOK_DEPTH_M4], set.Assets[setlib.BOOK_DEPTH_M5], set.Assets[setlib.BOOK_DEPTH_P1], set.Assets[setlib.BOOK_DEPTH_P2], set.Assets[setlib.BOOK_DEPTH_P3], set.Assets[setlib.BOOK_DEPTH_P4], set.Assets[setlib.BOOK_DEPTH_P5]}
-		engine.Engine.AddBookDepthParsing(bookDepthStates, &pair)
+		// bookDepthStates := setlib.AssetStates{set.Assets[setlib.BOOK_DEPTH_M1], set.Assets[setlib.BOOK_DEPTH_M2], set.Assets[setlib.BOOK_DEPTH_M3], set.Assets[setlib.BOOK_DEPTH_M4], set.Assets[setlib.BOOK_DEPTH_M5], set.Assets[setlib.BOOK_DEPTH_P1], set.Assets[setlib.BOOK_DEPTH_P2], set.Assets[setlib.BOOK_DEPTH_P3], set.Assets[setlib.BOOK_DEPTH_P4], set.Assets[setlib.BOOK_DEPTH_P5]}
+		// engine.Engine.AddBookDepthParsing(bookDepthStates, &pair)
 
-		metricsState := setlib.AssetStates{set.Assets[setlib.METRIC_COUNT_LONG_SHORT_RATIO], set.Assets[setlib.METRIC_COUNT_TOP_TRADER_LONG_SHORT_RATIO], set.Assets[setlib.METRIC_SUM_OPEN_INTEREST], set.Assets[setlib.METRIC_SUM_TAKER_LONG_SHORT_VOL_RATIO], set.Assets[setlib.METRIC_SUM_TOP_TRADER_LONG_SHORT_RATIO]}
-		engine.Engine.AddMetricsParsing(metricsState, &pair)
+		// metricsState := setlib.AssetStates{set.Assets[setlib.METRIC_COUNT_LONG_SHORT_RATIO], set.Assets[setlib.METRIC_COUNT_TOP_TRADER_LONG_SHORT_RATIO], set.Assets[setlib.METRIC_SUM_OPEN_INTEREST], set.Assets[setlib.METRIC_SUM_TAKER_LONG_SHORT_VOL_RATIO], set.Assets[setlib.METRIC_SUM_TOP_TRADER_LONG_SHORT_RATIO]}
+		// engine.Engine.AddMetricsParsing(metricsState, &pair)
 
 	}
 

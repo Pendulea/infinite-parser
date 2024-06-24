@@ -48,7 +48,7 @@ func printTimeframeDeletionStatus(runner *gorunner.Runner, state *setlib.AssetSt
 func addTimeframeDeletionRunnerProcess(runner *gorunner.Runner, state *setlib.AssetState, timeframe time.Duration) {
 
 	runner.AddProcess(func() error {
-		if !state.IsTimeframeSupported(timeframe) {
+		if !state.IsTimeframeSupported(timeframe) && timeframe != pcommon.Env.MIN_TIME_FRAME {
 			return nil
 		}
 
@@ -65,9 +65,10 @@ func addTimeframeDeletionRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		}
 
 		go func() {
+			time.Sleep(2 * time.Second)
 			for runner.Task.IsRunning() {
-				time.Sleep(5 * time.Second)
 				printTimeframeDeletionStatus(runner, state)
+				time.Sleep(5 * time.Second)
 			}
 		}()
 		count, err := state.Delete(timeframe, func(lastElementDeletedTime pcommon.TimeUnit, deleted int) {

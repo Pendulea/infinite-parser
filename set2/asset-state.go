@@ -2,6 +2,7 @@ package set2
 
 import (
 	"fmt"
+	"pendulev2/dtype"
 
 	pcommon "github.com/pendulea/pendule-common"
 	log "github.com/sirupsen/logrus"
@@ -10,7 +11,7 @@ import (
 type AssetState struct {
 	key       [2]byte
 	id        string
-	t         DataType
+	t         dtype.DataType
 	precision int8             //precision of the data
 	readList  *assetReadlist   //timeframe list and last read
 	start     pcommon.TimeUnit //data start time
@@ -34,7 +35,7 @@ func (state *AssetState) ID() string {
 	return state.id
 }
 
-func (state *AssetState) Type() DataType {
+func (state *AssetState) Type() dtype.DataType {
 	return state.t
 }
 
@@ -67,7 +68,7 @@ func (state *AssetState) Copy(SetRef *Set, id string, precision int8) *AssetStat
 	return &newState
 }
 
-func newUninitalizedAssetState(key [2]byte, dataType DataType) AssetState {
+func newUninitalizedAssetState(key [2]byte, dataType dtype.DataType) AssetState {
 	return AssetState{
 		key:      key,
 		t:        dataType,
@@ -77,15 +78,15 @@ func newUninitalizedAssetState(key [2]byte, dataType DataType) AssetState {
 }
 
 func (state *AssetState) IsUnit() bool {
-	return state.t == UNIT
+	return state.t == dtype.UNIT
 }
 
 func (state *AssetState) IsQuantity() bool {
-	return state.t == QUANTITY
+	return state.t == dtype.QUANTITY
 }
 
 func (state *AssetState) IsPoint() bool {
-	return state.t == POINT
+	return state.t == dtype.POINT
 }
 
 func (state *AssetState) PrintReadList() {

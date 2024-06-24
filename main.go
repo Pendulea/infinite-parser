@@ -52,9 +52,34 @@ func main() {
 
 	go func() {
 		time.Sleep(time.Second * 2)
-		for _, set := range activeSets {
-			set.AddTimeframe(time.Hour*4, engine.Engine.AddTimeframeIndexing)
+		// for _, set := range activeSets {
+		// p := set.Assets[setlib.VOLUME]
+		// engine.Engine.DeleteTimeframe(p, time.Second)
+		// }
+		// 	// 	fmt.Println(p.Precision())
+		// 	settings := setlib.DataLimitSettings{
+		// 		Limit:          100,
+		// 		StartByEnd:     false,
+		// 		TimeFrame:      time.Second,
+		// 		OffsetUnixTime: 0,
+		// 	}
+		// 	list, err := p.GetDataLimit(settings, false)
+		// 	if err != nil {
+		// 		log.Fatal(err)
+		// 	}
+		// 	for _, v := range list.(dtype.UnitTimeArray) {
+		// 		fmt.Println(v.String())
+		// 	}
+		// }
+
+		s := engine.CSVBuildingOrderPacked{From: 1587607200, To: 1587608000, Timeframe: 1000}
+		s.Orders = make([][]string, 0)
+		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "price", "open", "high", "time", "average"})
+		s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "volume", "plus", "minus", "time"})
+		if err := engine.Engine.AddCSVBuilding(s); err != nil {
+			fmt.Println(err)
 		}
+		// set.AddTimeframe(time.Hour*4, engine.Engine.AddTimeframeIndexing)
 	}()
 
 	sigs := make(chan os.Signal, 1)

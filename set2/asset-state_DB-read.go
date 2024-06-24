@@ -3,6 +3,7 @@ package set2
 import (
 	"bytes"
 	"errors"
+	"pendulev2/dtype"
 	"pendulev2/util"
 	"time"
 
@@ -15,7 +16,7 @@ func (state *AssetState) NewTX(update bool) *badger.Txn {
 	return state.SetRef.db.NewTransaction(update)
 }
 
-func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator) (DataList, error) {
+func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator) (dtype.DataList, error) {
 	if t1 < t0 {
 		return nil, errors.New("t1 must be after t0")
 	}
@@ -36,14 +37,15 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 
 	if iter == nil {
 		opts := badger.DefaultIteratorOptions
+		opts.Reverse = false
 		opts.PrefetchValues = true
 		iter = txn.NewIterator(opts)
 		defer iter.Close()
 	}
 
-	retUnit := UnitTimeArray{}
-	retQuantity := QuantityTimeArray{}
-	retPoint := PointTimeArray{}
+	retUnit := dtype.UnitTimeArray{}
+	retQuantity := dtype.QuantityTimeArray{}
+	retPoint := dtype.PointTimeArray{}
 
 	// Iterate over the keys and retrieve values within the range
 	for iter.Seek(startKey); iter.Valid(); iter.Next() {
@@ -63,14 +65,13 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 		}
 
 		if state.IsUnit() {
-			unit := parseRawUnit(value)
-
+			unit := dtype.ParseRawUnit(value)
 			retUnit = append(retUnit, unit.ToTime(dataTime))
 		} else if state.IsQuantity() {
-			quantity := parseRawQuantity(value)
+			quantity := dtype.ParseRawQuantity(value)
 			retQuantity = append(retQuantity, quantity.ToTime(dataTime))
 		} else if state.IsPoint() {
-			point, err := parsePoint(value)
+			point, err := dtype.ParsePoint(value)
 			if err != nil {
 				return nil, err
 			}
@@ -97,15 +98,15 @@ type DataLimitSettings struct {
 	StartByEnd     bool
 }
 
-func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool) (DataList, error) {
+func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool) (dtype.DataList, error) {
 	timeFrame := settings.TimeFrame
 	limit := settings.Limit
 	offsetUnixTime := settings.OffsetUnixTime
 	startByEnd := settings.StartByEnd
 
-	retUnits := UnitTimeArray{}
-	retQuantities := QuantityTimeArray{}
-	retPoints := PointTimeArray{}
+	retUnits := dtype.UnitTimeArray{}
+	retQuantities := dtype.QuantityTimeArray{}
+	retPoints := dtype.PointTimeArray{}
 
 	if limit > 1 && !state.IsTimeframeSupported(timeFrame) {
 		return nil, nil
@@ -166,28 +167,28 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 		}
 
 		if state.IsPoint() {
-			p, err := parsePoint(value)
+			p, err := dtype.ParsePoint(value)
 			if err != nil {
 				return nil, err
 			}
 			if !startByEnd {
 				retPoints = append(retPoints, p.ToTime(rowTime))
 			} else {
-				retPoints = append([]PointTime{p.ToTime(rowTime)}, retPoints...)
+				retPoints = append([]dtype.PointTime{p.ToTime(rowTime)}, retPoints...)
 			}
 		} else if state.IsQuantity() {
-			q := parseRawQuantity(value).ToTime(rowTime)
+			q := dtype.ParseRawQuantity(value).ToTime(rowTime)
 			if !startByEnd {
 				retQuantities = append(retQuantities, q)
 			} else {
-				retQuantities = append(QuantityTimeArray{q}, retQuantities...)
+				retQuantities = append(dtype.QuantityTimeArray{q}, retQuantities...)
 			}
 		} else if state.IsUnit() {
-			u := parseRawUnit(value).ToTime(rowTime)
+			u := dtype.ParseRawUnit(value).ToTime(rowTime)
 			if !startByEnd {
 				retUnits = append(retUnits, u)
 			} else {
-				retUnits = append(UnitTimeArray{u}, retUnits...)
+				retUnits = append(dtype.UnitTimeArray{u}, retUnits...)
 			}
 		} else {
 			return nil, errors.New("unknown data type")
@@ -212,16 +213,16 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 	}
 
 	if state.IsUnit() {
-		return DataList(retUnits), nil
+		return dtype.DataList(retUnits), nil
 	} else if state.IsQuantity() {
-		return DataList(retQuantities), nil
+		return dtype.DataList(retQuantities), nil
 	} else if state.IsPoint() {
-		return DataList(retPoints), nil
+		return dtype.DataList(retPoints), nil
 	}
 	return nil, errors.New("unknown data type")
 }
 
-func (state *AssetState) getSingleData(settings DataLimitSettings) (Data, pcommon.TimeUnit, error) {
+func (state *AssetState) getSingleData(settings DataLimitSettings) (dtype.Data, pcommon.TimeUnit, error) {
 	settings.Limit = 1
 	list, err := state.GetDataLimit(settings, false)
 	if err != nil {
@@ -236,15 +237,15 @@ func (state *AssetState) getSingleData(settings DataLimitSettings) (Data, pcommo
 	}
 
 	if state.IsPoint() {
-		cast := list.(PointTimeArray)
+		cast := list.(dtype.PointTimeArray)
 		p := cast[0]
 		return &p, p.Time, nil
 	} else if state.IsQuantity() {
-		cast := list.(QuantityTimeArray)
+		cast := list.(dtype.QuantityTimeArray)
 		q := cast[0]
 		return &q, q.Time, nil
 	} else if state.IsUnit() {
-		cast := list.(UnitTimeArray)
+		cast := list.(dtype.UnitTimeArray)
 		u := cast[0]
 		return &u, u.Time, nil
 	}

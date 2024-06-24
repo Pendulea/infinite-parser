@@ -1,14 +1,30 @@
-package set2
+package dtype
 
 import (
-	"strings"
+	"sort"
 	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
+	"github.com/samber/lo"
 )
 
+type CSVCheckListRequirement map[string]bool
+
+func (c CSVCheckListRequirement) Columns() []string {
+	result := lo.MapToSlice(c, func(k string, v bool) string {
+		if v {
+			return k
+		}
+		return ""
+	})
+	sort.Slice(result, func(i, j int) bool {
+		return result[i] < result[j]
+	})
+	return result
+}
+
 type Data interface {
-	CSVLine(prefix string, volumeDecimals int8, requirement CSVCheckListRequirement) string
+	CSVLine(prefix string, volumeDecimals int8, requirement CSVCheckListRequirement) []string
 	ToRaw(decimals int8) []byte
 	IsEmpty() bool
 	Type() DataType
@@ -46,7 +62,7 @@ func (d DataType) Columns() []string {
 	return []string{}
 }
 
-func (q DataType) Header(prefix string, requirement CSVCheckListRequirement) string {
+func (q DataType) Header(prefix string, requirement CSVCheckListRequirement) []string {
 	list := []string{}
 	for _, column := range q.Columns() {
 		if requirement[column] {
@@ -57,5 +73,5 @@ func (q DataType) Header(prefix string, requirement CSVCheckListRequirement) str
 			}
 		}
 	}
-	return strings.Join(list, ",")
+	return list
 }

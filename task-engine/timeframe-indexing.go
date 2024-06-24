@@ -111,6 +111,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		//iterator
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = true
+		opts.Reverse = false
 		iter := txn.NewIterator(opts)
 		defer iter.Close()
 

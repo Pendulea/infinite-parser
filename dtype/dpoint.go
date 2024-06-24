@@ -1,4 +1,4 @@
-package set2
+package dtype
 
 import (
 	"log"
@@ -38,7 +38,7 @@ func (m Point) IsEmpty() bool {
 	return m.Value == 0.00
 }
 
-func parsePoint(d []byte) (Point, error) {
+func ParsePoint(d []byte) (Point, error) {
 	if len(d) == 0 {
 		return Point{}, nil
 	}
@@ -57,26 +57,28 @@ func (p Point) ToRaw(decimals int8) []byte {
 	return []byte(pcommon.Format.Float(p.Value, decimals))
 }
 
-func (m PointTime) CSVLine(prefix string, volumeDecimals int8, requirement CSVCheckListRequirement) string {
-	str := ""
+func (m PointTime) CSVLine(prefix string, volumeDecimals int8, requirement CSVCheckListRequirement) []string {
+	ret := []string{}
+
 	if requirement[TIME] {
 		if m.Time > 0 {
 			if pcommon.Env.MIN_TIME_FRAME >= time.Second {
-				str += strconv.FormatInt(m.Time.ToTime().Unix(), 10) + ","
+				ret = append(ret, strconv.FormatInt(m.Time.ToTime().Unix(), 10))
 			} else {
-				str += m.Time.String() + ","
+				ret = append(ret, m.Time.String())
 			}
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[VALUE] {
 		if m.Value != 0.00 {
-			str += pcommon.Format.Float(m.Value, volumeDecimals)
+			ret = append(ret, pcommon.Format.Float(m.Value, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
-	return str
+
+	return ret
 }

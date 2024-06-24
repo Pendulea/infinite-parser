@@ -50,7 +50,7 @@ func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.D
 }
 
 func (e *engine) DeleteTimeframe(state *setlib.AssetState, timeframe time.Duration) error {
-	if timeframe <= pcommon.Env.MIN_TIME_FRAME {
+	if timeframe < pcommon.Env.MIN_TIME_FRAME {
 		return errors.New("timeframe is too small")
 	}
 

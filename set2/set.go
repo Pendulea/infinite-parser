@@ -90,8 +90,12 @@ func (s *Set) Close() {
 
 func (s *Set) AddTimeframe(timeframe time.Duration, engineCB func(state *AssetState, timeframe time.Duration) error) {
 	for _, asset := range s.Assets {
-		if !asset.IsTimeframeSupported(timeframe) {
-			engineCB(asset, timeframe)
-		}
+		engineCB(asset, timeframe)
+	}
+}
+
+func (s *Set) RemoveTimeframe(timeframe time.Duration, engineCB func(state *AssetState, timeframe time.Duration) error) {
+	for _, asset := range s.Assets {
+		engineCB(asset, timeframe)
 	}
 }

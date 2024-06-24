@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"pendulev2/dtype"
 	setlib "pendulev2/set2"
 
 	"github.com/fantasim/gorunner"
@@ -90,7 +91,7 @@ func addMetricsParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair)
 		stateMap[setlib.METRIC_COUNT_LONG_SHORT_RATIO] = map[pcommon.TimeUnit][]byte{}
 		stateMap[setlib.METRIC_SUM_TAKER_LONG_SHORT_VOL_RATIO] = map[pcommon.TimeUnit][]byte{}
 
-		setData := func(s *setlib.AssetState, data setlib.UnitTimeArray) {
+		setData := func(s *setlib.AssetState, data dtype.UnitTimeArray) {
 			defer mu.Unlock()
 			mu.Lock()
 			stateMap[s.ID()] = data.ToRaw(s.Precision())
@@ -98,46 +99,46 @@ func addMetricsParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair)
 		}
 
 		go func(stateID string) {
-			res := setlib.UnitTimeArray{}
+			res := dtype.UnitTimeArray{}
 			for _, m := range metrics {
 				timestamp := pcommon.NewTimeUnitFromTime(m.CreateTime)
-				res = append(res, setlib.NewUnit(m.SumOpenInterest).ToTime(timestamp))
+				res = append(res, dtype.NewUnit(m.SumOpenInterest).ToTime(timestamp))
 			}
 			setData(set.Assets[stateID], res)
 		}(setlib.METRIC_SUM_OPEN_INTEREST)
 
 		go func(stateID string) {
-			res := setlib.UnitTimeArray{}
+			res := dtype.UnitTimeArray{}
 			for _, m := range metrics {
 				timestamp := pcommon.NewTimeUnitFromTime(m.CreateTime)
-				res = append(res, setlib.NewUnit(m.CountTopTraderLongShortRatio).ToTime(timestamp))
+				res = append(res, dtype.NewUnit(m.CountTopTraderLongShortRatio).ToTime(timestamp))
 			}
 			setData(set.Assets[stateID], res)
 		}(setlib.METRIC_COUNT_TOP_TRADER_LONG_SHORT_RATIO)
 
 		go func(stateID string) {
-			res := setlib.UnitTimeArray{}
+			res := dtype.UnitTimeArray{}
 			for _, m := range metrics {
 				timestamp := pcommon.NewTimeUnitFromTime(m.CreateTime)
-				res = append(res, setlib.NewUnit(m.SumTopTraderLongShortRatio).ToTime(timestamp))
+				res = append(res, dtype.NewUnit(m.SumTopTraderLongShortRatio).ToTime(timestamp))
 			}
 			setData(set.Assets[stateID], res)
 		}(setlib.METRIC_SUM_TOP_TRADER_LONG_SHORT_RATIO)
 
 		go func(stateID string) {
-			res := setlib.UnitTimeArray{}
+			res := dtype.UnitTimeArray{}
 			for _, m := range metrics {
 				timestamp := pcommon.NewTimeUnitFromTime(m.CreateTime)
-				res = append(res, setlib.NewUnit(m.CountLongShortRatio).ToTime(timestamp))
+				res = append(res, dtype.NewUnit(m.CountLongShortRatio).ToTime(timestamp))
 			}
 			setData(set.Assets[stateID], res)
 		}(setlib.METRIC_COUNT_LONG_SHORT_RATIO)
 
 		go func(stateID string) {
-			res := setlib.UnitTimeArray{}
+			res := dtype.UnitTimeArray{}
 			for _, m := range metrics {
 				timestamp := pcommon.NewTimeUnitFromTime(m.CreateTime)
-				res = append(res, setlib.NewUnit(m.SumTakerLongShortVolRatio).ToTime(timestamp))
+				res = append(res, dtype.NewUnit(m.SumTakerLongShortVolRatio).ToTime(timestamp))
 			}
 			setData(set.Assets[stateID], res)
 		}(setlib.METRIC_SUM_TAKER_LONG_SHORT_VOL_RATIO)

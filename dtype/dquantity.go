@@ -1,4 +1,4 @@
-package set2
+package dtype
 
 import (
 	"fmt"
@@ -106,7 +106,7 @@ func (m Quantity) IsEmpty() bool {
 	return m.MinusCount == 0 && m.PlusCount == 0
 }
 
-func parseRawQuantity(raw []byte) Quantity {
+func ParseRawQuantity(raw []byte) Quantity {
 	s := string(raw)
 
 	splited := strings.Split(s, "@")
@@ -168,83 +168,88 @@ func (q Quantity) ToTime(time pcommon.TimeUnit) QuantityTime {
 	}
 }
 
-func (q QuantityTime) CSVLine(prefix string, volumeDecimals int8, requiremment CSVCheckListRequirement) string {
-	str := ""
+func (q QuantityTime) CSVLine(prefix string, volumeDecimals int8, requiremment CSVCheckListRequirement) []string {
+	ret := []string{}
+
 	if requiremment[TIME] {
 		if q.Time > 0 {
 			if pcommon.Env.MIN_TIME_FRAME >= time.Second {
-				str += strconv.FormatInt(q.Time.ToTime().Unix(), 10) + ","
+				ret = append(ret, strconv.FormatInt(q.Time.ToTime().Unix(), 10))
 			} else {
-				str += q.Time.String() + ","
+				ret = append(ret, q.Time.String())
 			}
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[PLUS] {
 		if q.Plus != 0 {
-			str += pcommon.Format.Float(q.Plus, volumeDecimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Plus, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[MINUS] {
 		if q.Minus != 0 {
-			str += pcommon.Format.Float(q.Minus, volumeDecimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Minus, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[PLUS_AVERAGE] {
 		if q.PlusAvg != 0 {
-			str += pcommon.Format.Float(q.PlusAvg, volumeDecimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.PlusAvg, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[MINUS_AVERAGE] {
 		if q.MinusAvg != 0 {
-			str += pcommon.Format.Float(q.MinusAvg, volumeDecimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.MinusAvg, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[PLUS_MEDIAN] {
 		if q.PlusMed != 0 {
-			str += pcommon.Format.Float(q.PlusMed, volumeDecimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.PlusMed, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[MINUS_MEDIAN] {
 		if q.MinusMed != 0 {
-			str += pcommon.Format.Float(q.MinusMed, volumeDecimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.MinusMed, volumeDecimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[PLUS_COUNT] {
 		if q.PlusCount != 0 {
-			str += strconv.FormatInt(q.PlusCount, 10) + ","
+			ret = append(ret, strconv.FormatInt(q.PlusCount, 10))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requiremment[MINUS_COUNT] {
 		if q.MinusCount != 0 {
-			str += strconv.FormatInt(q.MinusCount, 10)
+			ret = append(ret, strconv.FormatInt(q.MinusCount, 10))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
-	return str
+	return ret
+}
+
+func (qty QuantityTime) String() string {
+	return fmt.Sprintf("[%d] Plus: %f Minus: %f PlusAvg: %f MinusAvg: %f PlusMed: %f MinusMed: %f PlusCount: %d MinusCount: %d", qty.Time.ToTime().Unix(), qty.Plus, qty.Minus, qty.PlusAvg, qty.MinusAvg, qty.PlusMed, qty.MinusMed, qty.PlusCount, qty.MinusCount)
 }

@@ -2,8 +2,6 @@ package set2
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
@@ -54,9 +52,9 @@ func (state *AssetState) Store(data map[pcommon.TimeUnit][]byte, timeframe time.
 }
 
 func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDate func(pcommon.TimeUnit, int)) (int, error) {
-	if timeFrame == pcommon.Env.MIN_TIME_FRAME {
-		return 0, errors.New("cannot delete MIN_TIME_FRAME date")
-	}
+	// if timeFrame == pcommon.Env.MIN_TIME_FRAME {
+	// 	return 0, errors.New("cannot delete MIN_TIME_FRAME date")
+	// }
 
 	label, err := pcommon.Format.TimeFrameToLabel(timeFrame)
 	if err != nil {
@@ -116,7 +114,6 @@ func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDa
 		// Update the total deleted count
 		totalDeleted += elemDeletedInBatch
 		_, t, err := state.ParseDataKey(lastKey)
-		fmt.Println(lastKey)
 		if err != nil {
 			return totalDeleted, err
 		}

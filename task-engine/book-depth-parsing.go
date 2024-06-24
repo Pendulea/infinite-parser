@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"pendulev2/dtype"
 	setlib "pendulev2/set2"
 	"strconv"
 	"sync"
@@ -79,16 +80,16 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 		}
 		runner.SetStatValue(STAT_VALUE_DATA_COUNT, int64(len(list))/10)
 
-		m := make(map[int]setlib.UnitTimeArray)
+		m := make(map[int]dtype.UnitTimeArray)
 		for percent := -5; percent <= 5; percent++ {
 			if percent != 0 {
-				m[percent] = setlib.UnitTimeArray{}
+				m[percent] = dtype.UnitTimeArray{}
 			}
 		}
 
 		for _, bd := range list {
 			timestamp := pcommon.NewTimeUnitFromTime(bd.Timestamp)
-			m[bd.Percentage] = append(m[bd.Percentage], setlib.NewUnit(bd.Depth).ToTime(timestamp))
+			m[bd.Percentage] = append(m[bd.Percentage], dtype.NewUnit(bd.Depth).ToTime(timestamp))
 		}
 
 		wg := sync.WaitGroup{}
@@ -103,7 +104,7 @@ func addBookDepthRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 				if set.Assets[stateID] == nil {
 					return fmt.Errorf("asset %s not found", stateID)
 				}
-				go func(state *setlib.AssetState, data setlib.UnitTimeArray) {
+				go func(state *setlib.AssetState, data dtype.UnitTimeArray) {
 					lerr := state.Store(data.ToRaw(state.Precision()), pcommon.Env.MIN_TIME_FRAME, -1)
 					if lerr != nil {
 						mu.Lock()

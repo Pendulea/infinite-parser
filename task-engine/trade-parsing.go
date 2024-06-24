@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"pendulev2/dtype"
 	setlib "pendulev2/set2"
 
 	"github.com/fantasim/gorunner"
@@ -124,8 +125,8 @@ func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 		runner.SetSize().Max(int64(len(trades)))
 		runner.AddStep()
 
-		var prices setlib.UnitTimeArray
-		var volumes setlib.QuantityTimeArray
+		var prices dtype.UnitTimeArray
+		var volumes dtype.QuantityTimeArray
 
 		wg := sync.WaitGroup{}
 		wg.Add(2)
@@ -175,10 +176,11 @@ func addTradeParsingRunnerProcess(runner *gorunner.Runner, pair *pcommon.Pair) {
 	runner.AddProcess(process)
 }
 
-func AggregateTradesToPrices(trades pcommon.TradeList) setlib.UnitTimeArray {
-	pricesBucket := setlib.UnitTimeArray{}
-	aggrUnitList := setlib.UnitTimeArray{}
+func AggregateTradesToPrices(trades pcommon.TradeList) dtype.UnitTimeArray {
+	pricesBucket := dtype.UnitTimeArray{}
+	tmpUnitList := dtype.UnitTimeArray{}
 
+	prevTime := pcommon.TimeUnit(0)
 	for _, trade := range trades {
 		div := pcommon.TimeUnit(0).Add(pcommon.Env.MIN_TIME_FRAME)
 		currentTime := trade.Timestamp
@@ -187,29 +189,29 @@ func AggregateTradesToPrices(trades pcommon.TradeList) setlib.UnitTimeArray {
 			currentTime *= div
 		}
 
-		aggSize := len(aggrUnitList)
-		if aggSize == 0 {
-			aggrUnitList = append(aggrUnitList, setlib.NewUnit(trade.Price).ToTime(currentTime))
+		if prevTime == 0 {
+			tmpUnitList = append(tmpUnitList, dtype.NewUnit(trade.Price).ToTime(currentTime))
 		} else {
-			prev := aggrUnitList[aggSize-1]
-			if prev.Time == currentTime {
-				aggrUnitList = append(aggrUnitList, setlib.NewUnit(trade.Price).ToTime(currentTime))
+			if prevTime == currentTime {
+				tmpUnitList = append(tmpUnitList, dtype.NewUnit(trade.Price).ToTime(currentTime))
 			} else {
-				pricesBucket = append(pricesBucket, aggrUnitList.Aggregate(pcommon.Env.MIN_TIME_FRAME, currentTime).(setlib.UnitTime))
-				aggrUnitList = setlib.UnitTimeArray{}
+				pricesBucket = append(pricesBucket, tmpUnitList.Aggregate(pcommon.Env.MIN_TIME_FRAME, prevTime).(dtype.UnitTime))
+				tmpUnitList = dtype.UnitTimeArray{dtype.NewUnit(trade.Price).ToTime(currentTime)}
 			}
 		}
+		prevTime = currentTime
 	}
-	if len(aggrUnitList) > 0 {
-		pricesBucket = append(pricesBucket, aggrUnitList.Aggregate(pcommon.Env.MIN_TIME_FRAME, aggrUnitList[len(aggrUnitList)-1].Time).(setlib.UnitTime))
+	if len(tmpUnitList) > 0 {
+		pricesBucket = append(pricesBucket, tmpUnitList.Aggregate(pcommon.Env.MIN_TIME_FRAME, prevTime).(dtype.UnitTime))
 	}
 	return pricesBucket
 }
 
-func AggregateTradesToVolumes(trades pcommon.TradeList) setlib.QuantityTimeArray {
-	volumesBucket := setlib.QuantityTimeArray{}
-	aggrQtyList := setlib.QuantityTimeArray{}
+func AggregateTradesToVolumes(trades pcommon.TradeList) dtype.QuantityTimeArray {
+	volumesBucket := dtype.QuantityTimeArray{}
+	tmpQtyList := dtype.QuantityTimeArray{}
 
+	prevTime := pcommon.TimeUnit(0)
 	for _, trade := range trades {
 		div := pcommon.TimeUnit(0).Add(pcommon.Env.MIN_TIME_FRAME)
 		currentTime := trade.Timestamp
@@ -218,23 +220,25 @@ func AggregateTradesToVolumes(trades pcommon.TradeList) setlib.QuantityTimeArray
 			currentTime *= div
 		}
 
-		aggSize := len(aggrQtyList)
-		qty := pcommon.When[float64](trade.IsBuyerMaker).Then(trade.Quantity).Else(-trade.Quantity)
-		if aggSize == 0 {
-			aggrQtyList = append(aggrQtyList, setlib.NewQuantity(qty).ToTime(currentTime))
+		volume := pcommon.When[float64](trade.IsBuyerMaker).Then(trade.Quantity).Else(-trade.Quantity)
+
+		if prevTime == 0 {
+			tmpQtyList = append(tmpQtyList, dtype.NewQuantity(volume).ToTime(currentTime))
 		} else {
-			prev := aggrQtyList[aggSize-1]
-			if prev.Time == currentTime {
-				aggrQtyList = append(aggrQtyList, setlib.NewQuantity(qty).ToTime(currentTime))
+			if prevTime == currentTime {
+				tmpQtyList = append(tmpQtyList, dtype.NewQuantity(volume).ToTime(currentTime))
 			} else {
-				volumesBucket = append(volumesBucket, aggrQtyList.Aggregate(pcommon.Env.MIN_TIME_FRAME, currentTime).(setlib.QuantityTime))
-				aggrQtyList = []setlib.QuantityTime{}
+				volumesBucket = append(volumesBucket, tmpQtyList.Aggregate(pcommon.Env.MIN_TIME_FRAME, prevTime).(dtype.QuantityTime))
+				tmpQtyList = dtype.QuantityTimeArray{dtype.NewQuantity(volume).ToTime(currentTime)}
 			}
 		}
+		prevTime = currentTime
 	}
-	if len(aggrQtyList) > 0 {
-		volumesBucket = append(volumesBucket, aggrQtyList.Aggregate(pcommon.Env.MIN_TIME_FRAME, aggrQtyList[len(aggrQtyList)-1].Time).(setlib.QuantityTime))
+
+	if len(tmpQtyList) > 0 {
+		volumesBucket = append(volumesBucket, tmpQtyList.Aggregate(pcommon.Env.MIN_TIME_FRAME, prevTime).(dtype.QuantityTime))
 	}
+
 	return volumesBucket
 }
 

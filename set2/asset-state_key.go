@@ -2,8 +2,7 @@ package set2
 
 import (
 	"errors"
-	"fmt"
-	"strings"
+	"pendulev2/util"
 
 	pcommon "github.com/pendulea/pendule-common"
 )
@@ -22,8 +21,9 @@ func (sk *AssetState) GetReadListKey() []byte {
 
 func (sk *AssetState) GetDataKey(timeFrameLabel string, time pcommon.TimeUnit) []byte {
 	prefix := append(sk.key[:], byte(DATA_COLUMN))
-	suffix := fmt.Sprintf("%s:%d", timeFrameLabel, time)
-	return append(prefix, []byte(suffix)...)
+	suffix := append([]byte(timeFrameLabel), util.Int64ToBytes(time.Int())...)
+
+	return append(prefix, suffix...)
 }
 
 func (sk *AssetState) GetLastDataTimeKey(timeFrameLabel string) []byte {
@@ -31,19 +31,33 @@ func (sk *AssetState) GetLastDataTimeKey(timeFrameLabel string) []byte {
 	return append(prefix, []byte(timeFrameLabel)...)
 }
 
+// func (sk *AssetState) IsDataKey(key []byte) bool {
+// 	if len(key) > 3 {
+// 		keyFormated := key[2:]
+// 		if keyFormated[0] == byte(DATA_COLUMN) {
+// 			keyFormated = keyFormated[1:]
+// 			if len(keyFormated) >= 10 && len(keyFormated) <= 18 {
+// 				return true
+// 			}
+// 		}
+// 	}
+// 	return false
+// }
+
 func (sk *AssetState) ParseDataKey(key []byte) (timeFrameLabel string, time pcommon.TimeUnit, err error) {
 	//remove first 2 bytes
 	keyFormated := key[2:]
 	if len(keyFormated) > 0 && keyFormated[0] == byte(DATA_COLUMN) {
-		keyStr := string(keyFormated[1:])
-		var unixTime int64
-		parts := strings.Split(keyStr, ":")
-		if len(parts) == 2 {
-			fmt.Sscanf(parts[1], "%d", &unixTime)
-			if unixTime > 0 {
-				return parts[0], pcommon.NewTimeUnit(unixTime), nil
-			}
+		keyFormated = keyFormated[1:]
+		last8Bytes := keyFormated[len(keyFormated)-8:]
+		if len(last8Bytes) != 8 {
+			return "", 0, errors.New("invalid tick key format")
 		}
+		keyFormated = keyFormated[:len(keyFormated)-8]
+		if len(keyFormated) < 2 {
+			return "", 0, errors.New("invalid tick key format")
+		}
+		return string(keyFormated), pcommon.NewTimeUnit(util.BytesToInt64(last8Bytes)), nil
 	}
 	return "", 0, errors.New("invalid tick key format")
 }

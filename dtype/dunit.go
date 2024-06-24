@@ -1,9 +1,9 @@
-package set2
+package dtype
 
 import (
 	"fmt"
-	"log"
 	"math"
+	"pendulev2/util"
 	"strconv"
 	"strings"
 	"time"
@@ -80,6 +80,15 @@ func getPrecision(val float64) int {
 		// No decimal point found, so the precision is 0
 		return 0
 	}
+
+	//trim all 0's at end
+	for i := len(str) - 1; i > decimalPos; i-- {
+		if str[i] != '0' {
+			break
+		}
+		str = str[:len(str)-1]
+	}
+
 	// The precision is the number of characters after the decimal point
 	return len(str) - decimalPos - 1
 }
@@ -88,75 +97,66 @@ func (list UnitTimeArray) Aggregate(timeframe time.Duration, newTime pcommon.Tim
 	ret := UnitTime{Time: newTime}
 	closes := []float64{}
 
-	minDecimals := 0
+	absoluteSumDecimals := 0
+	absoluteSum := decimal.NewFromFloat(0.00)
+	maxClosePrecision := 0
 
 	for i, unit := range list {
-		if unit.Count == 0 || unit.Open <= 0.00 {
+		if unit.Count == 0 || unit.Open == 0.00 {
 			continue
+		}
+		currentUnitPricision := getPrecision(unit.Close)
+		if currentUnitPricision > maxClosePrecision {
+			maxClosePrecision = currentUnitPricision
 		}
 
 		if i > 0 && timeframe == pcommon.Env.MIN_TIME_FRAME {
-			prevPrice := list[i-1].Close
-			currentPrice := unit.Close
+			prevValue := list[i-1].Close
+			currentValue := unit.Close
 
-			if prevPrice != currentPrice {
-				maxPrecision := int(math.Max(float64(getPrecision(prevPrice)), float64(getPrecision(currentPrice))))
-				currentAPS := decimal.NewFromFloat(ret.AbsoluteSum)
-				max := decimal.NewFromFloat(math.Max(currentPrice, prevPrice))
-				min := decimal.NewFromFloat(math.Min(currentPrice, prevPrice))
+			if prevValue != currentValue {
+				if currentUnitPricision > absoluteSumDecimals {
+					absoluteSumDecimals = currentUnitPricision
+				}
+
+				max := decimal.NewFromFloat(math.Max(currentValue, prevValue))
+				min := decimal.NewFromFloat(math.Min(currentValue, prevValue))
 
 				priceDiff := max.Sub(min)
-				newAPS := currentAPS.Add(priceDiff)
-
-				str := newAPS.String()
-				if strings.Contains(str, ".") {
-					splited := strings.Split(str, ".")
-					ret := splited[0]
-					if maxPrecision <= len(splited[1]) {
-						ret += "." + splited[1][:maxPrecision]
-					} else {
-						ret += "." + splited[1]
-					}
-					str = ret
-				}
-				v, err := strconv.ParseFloat(str, 64)
-				if err != nil {
-					log.Fatal(err)
-				}
-				ret.AbsoluteSum = v
+				absoluteSum = absoluteSum.Add(priceDiff)
 			}
-		} else {
-			minDecimals = int(math.Max(float64(minDecimals), float64(getPrecision(unit.AbsoluteSum))))
-			ret.AbsoluteSum, _ = decimal.NewFromFloat(ret.AbsoluteSum).Add(decimal.NewFromFloat(unit.AbsoluteSum)).Float64()
+		} else if timeframe != pcommon.Env.MIN_TIME_FRAME {
+			absoluteSumDecimals = int(math.Max(float64(absoluteSumDecimals), float64(getPrecision(unit.AbsoluteSum))))
+			absoluteSum = absoluteSum.Add(decimal.NewFromFloat(unit.AbsoluteSum))
 		}
 
-		ret.Open = unit.Open
-		ret.High = math.Max(ret.High, unit.High)
-		if ret.Low <= 0.00 {
+		if ret.Open == 0.00 {
+			ret.Open = unit.Open
+		}
+
+		if ret.High == 0.00 {
+			ret.High = unit.High
+		} else {
+			ret.High = math.Max(ret.High, unit.High)
+		}
+		if ret.Low == 0.00 {
 			ret.Low = unit.Low
 		} else {
 			ret.Low = math.Min(ret.Low, unit.Low)
 		}
+
 		ret.Close = unit.Close
 		ret.Count += unit.Count
 		closes = append(closes, unit.Close)
 	}
 
-	if timeframe != pcommon.Env.MIN_TIME_FRAME {
-		apsString := pcommon.Format.Float(ret.AbsoluteSum, int8(minDecimals))
-		newAPS, err := strconv.ParseFloat(apsString, 64)
-		if err != nil {
-			log.Fatal(err)
-		}
-		ret.AbsoluteSum = newAPS
-	}
-
-	ret.Average = pcommon.Math.SafeAverage(closes)
+	ret.AbsoluteSum, _ = absoluteSum.Round(int32(absoluteSumDecimals)).Float64()
+	ret.Average = util.RoundFloat(pcommon.Math.SafeAverage(closes), uint(maxClosePrecision))
 	ret.Median = pcommon.Math.SafeMedian(closes)
 	return ret
 }
 
-func parseRawUnit(raw []byte) Unit {
+func ParseRawUnit(raw []byte) Unit {
 	s := string(raw)
 	splited := strings.Split(s, "@")
 	if len(splited) == 1 {
@@ -194,7 +194,7 @@ func (p Unit) ToRaw(decimals int8) []byte {
 	if p.Count == 1 {
 		return []byte(pcommon.Format.Float(p.Open, decimals))
 	}
-	return []byte(fmt.Sprintf("%s@%s@%s@%s@%s@%s@%d@%s", pcommon.Format.Float(p.Open, decimals), pcommon.Format.Float(p.High, decimals), pcommon.Format.Float(p.Low, decimals), pcommon.Format.Float(p.Close, decimals), pcommon.Format.Float(p.Average, decimals), pcommon.Format.Float(p.Median, decimals), p.Count, pcommon.Format.Float(p.AbsoluteSum, decimals)))
+	return []byte(fmt.Sprintf("%f@%f@%f@%f@%f@%f@%f@%d", p.Open, p.High, p.Low, p.Close, p.Average, p.Median, p.AbsoluteSum, p.Count))
 }
 
 func (p Unit) ToTime(time pcommon.TimeUnit) UnitTime {
@@ -204,84 +204,95 @@ func (p Unit) ToTime(time pcommon.TimeUnit) UnitTime {
 	}
 }
 
-func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckListRequirement) string {
-	str := ""
+func (q UnitTime) CSVLine(prefix string, decimals int8, requirement CSVCheckListRequirement) []string {
+	ret := []string{}
 
 	if requirement[TIME] {
 		if q.Time > 0 {
-			if pcommon.Env.MIN_TIME_FRAME >= time.Second {
-				str += strconv.FormatInt(q.Time.ToTime().Unix(), 10) + ","
+			if pcommon.Env.MIN_TIME_FRAME >= time.Second && pcommon.Env.MIN_TIME_FRAME%time.Second == 0 {
+				ret = append(ret, strconv.FormatInt(q.Time.ToTime().Unix(), 10))
 			} else {
-				str += q.Time.String() + ","
+				ret = append(ret, q.Time.String())
 			}
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[OPEN] {
 		if q.Count > 1 {
-			str += pcommon.Format.Float(q.Open, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Open, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[HIGH] {
 		if q.Count > 1 {
-			str += pcommon.Format.Float(q.High, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.High, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[LOW] {
 		if q.Count > 1 {
-			str += pcommon.Format.Float(q.Low, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Low, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[CLOSE] {
 		if q.Count > 0 {
-			str += pcommon.Format.Float(q.Close, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Close, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[AVERAGE] {
 		if q.Count > 1 {
-			str += pcommon.Format.Float(q.Average, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Average, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[MEDIAN] {
 		if q.Count > 1 {
-			str += pcommon.Format.Float(q.Median, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.Median, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[ABSOLUTE_SUM] {
 		if q.AbsoluteSum != 0.00 {
-			str += pcommon.Format.Float(q.AbsoluteSum, decimals) + ","
+			ret = append(ret, pcommon.Format.Float(q.AbsoluteSum, decimals))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
 
 	if requirement[COUNT] {
 		if q.Count > 0 {
-			str += strconv.FormatInt(q.Count, 10)
+			ret = append(ret, strconv.FormatInt(q.Count, 10))
 		} else {
-			str += ","
+			ret = append(ret, "")
 		}
 	}
+	return ret
+}
 
-	return str
+func (u UnitTime) String() string {
+	return fmt.Sprintf("[%d] Open: %s High: %s Low: %s Close: %s Average: %s Median: %s AbsoluteSum: %s Count: %d", u.Time.ToTime().Unix(),
+		pcommon.Format.Float(u.Open, -1),
+		pcommon.Format.Float(u.High, -1),
+		pcommon.Format.Float(u.Low, -1),
+		pcommon.Format.Float(u.Close, -1),
+		pcommon.Format.Float(u.Average, -1),
+		pcommon.Format.Float(u.Median, -1),
+		pcommon.Format.Float(u.AbsoluteSum, -1),
+		u.Count)
 }
