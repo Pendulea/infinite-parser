@@ -3,6 +3,7 @@ package set2
 import (
 	"fmt"
 	"pendulev2/dtype"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	log "github.com/sirupsen/logrus"
@@ -41,6 +42,38 @@ func (state *AssetState) Type() dtype.DataType {
 
 func (state *AssetState) DataT0() pcommon.TimeUnit {
 	return state.start
+}
+
+func (state *AssetState) JSON(timeframe time.Duration) (*dtype.AssetJSON, error) {
+	t, err := state.GetLastConsistencyTime(timeframe)
+	if err != nil {
+		return nil, err
+	}
+	consistency := [2]pcommon.TimeUnit{0, 0}
+	if t > state.start {
+		consistency[0], consistency[1] = state.start, t
+	}
+
+	ret := dtype.AssetJSON{
+		ID:               state.id,
+		Precision:        state.precision,
+		Type:             state.t,
+		ConsistencyRange: consistency,
+		Timeframe:        timeframe.Milliseconds(),
+		SubAssets:        nil,
+	}
+	if (state.IsQuantity() || state.IsUnit()) && timeframe == pcommon.Env.MIN_TIME_FRAME {
+		ret.SubAssets = make([]dtype.AssetJSON, 0)
+		for _, v := range *state.readList.readList {
+			j, err := state.JSON(v.Timeframe)
+			if err != nil {
+				return nil, err
+			}
+			ret.SubAssets = append(ret.SubAssets, *j)
+		}
+	}
+
+	return &ret, nil
 }
 
 func (state *AssetState) Copy(SetRef *Set, minDataDate string, id string, precision int8) *AssetState {

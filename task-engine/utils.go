@@ -2,8 +2,11 @@ package engine
 
 import (
 	"log"
+	"os"
 	"strings"
 	"time"
+
+	pcommon "github.com/pendulea/pendule-common"
 
 	"github.com/fantasim/gorunner"
 )
@@ -213,3 +216,76 @@ func haveSameTimeframe(r1, r2 *gorunner.Runner) bool {
 
 // 	return nil
 // }
+
+func GetCSVList() ([]CSVStatus, error) {
+	list, err := pcommon.File.GetSortedFilenamesByDate(os.Getenv("CSV_DIR"))
+	if err != nil {
+		return nil, err
+	}
+	statuses := []CSVStatus{}
+	used := map[string]bool{}
+
+	for _, runner := range Engine.RunningRunners() {
+		if strings.Contains(runner.ID, CSV_BUILDING_KEY) {
+			parameters := getParameters(runner)
+			status := parameters.Status(runner)
+			used[status.BuildID] = true
+			statuses = append(statuses, status)
+		}
+	}
+
+	for _, file := range list {
+		//check if file ends with zip
+		if strings.HasSuffix(file.Name, ".zip") {
+			buildID := strings.ReplaceAll(file.Name, ".zip", "")
+			if _, ok := used[buildID]; ok {
+				continue
+			}
+			statuses = append(statuses, CSVBuildingOrderIDToStatus(buildID, file))
+		}
+	}
+	return statuses, nil
+}
+
+type StatusHTML struct {
+	AssetID string `json:"asset_id"`
+	HTML    string `json:"html"`
+}
+
+func HTMLify(r *gorunner.Runner) StatusHTML {
+	html := StatusHTML{}
+	// setID, _ := gorunner.GetArg[string](r.Args, ARG_VALUE_SET_ID)
+	// html.SetID = setID
+
+	// if strings.Contains(r.ID, TIMEFRAME_INDEXING_KEY) {
+	// 	timeframe, _ := gorunner.GetArg[time.Duration](r.Args, ARG_VALUE_TIMEFRAME)
+	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+
+	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+
+	// 	html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span>" + " candles " + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+	// }
+	// if strings.Contains(r.ID, INDICATOR_INDEXING_RUNNER) {
+	// 	indicator, _ := gorunner.GetArg[indicator.Indicator](r.Args, ARG_VALUE_INDICATOR)
+	// 	timeframe, _ := gorunner.GetArg[time.Duration](r.Args, ARG_VALUE_TIMEFRAME)
+	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+
+	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+
+	// 	html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + string(indicator) + "</span>" + " on " + "<span style=\"font-weight: 700; color: green;\">" + label + "</span>" + " candles " + "(<span style=\"font-weight: 700\">" + ETAString + "</span>)" + "</span>"
+	// }
+	// if strings.Contains(r.ID, CSV_BUILDING_KEY) {
+	// 	timeframe, _ := gorunner.GetArg[time.Duration](r.Args, ARG_VALUE_TIMEFRAME)
+	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+
+	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+
+	// 	html.HTML = "<span>Building CSV on " + "<span style=\"font-weight: 700\">" + label + "</span>" + " candles " + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+	// }
+	// if strings.Contains(r.ID, CANDLE_PARSING_KEY) {
+	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+	// 	html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + "1s" + "</span>" + " candles " + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+	// }
+
+	return html
+}

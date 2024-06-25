@@ -19,6 +19,23 @@ type Set struct {
 	db          *badger.DB
 }
 
+func (set *Set) JSON() (*dtype.SetJSON, error) {
+	json := dtype.SetJSON{
+		Settings: set.Settings,
+		Size:     set.Size(),
+		Assets:   make([]dtype.AssetJSON, 0),
+	}
+
+	for _, asset := range set.Assets {
+		j, err := asset.JSON(pcommon.Env.MIN_TIME_FRAME)
+		if err != nil {
+			return nil, err
+		}
+		json.Assets = append(json.Assets, *j)
+	}
+	return &json, nil
+}
+
 func (set *Set) Size() int64 {
 	lsm, vlog := set.db.Size()
 	return lsm + vlog

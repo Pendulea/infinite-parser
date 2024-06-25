@@ -29,13 +29,13 @@ func (e *engine) Init(activeSets *setlib.WorkingSets) {
 	}
 }
 
-// func (e *engine) GetHTMLStatuses() []StatusHTML {
-// 	list := []StatusHTML{}
-// 	for _, r := range e.RunningRunners() {
-// 		list = append(list, HTMLify(r))
-// 	}
-// 	return list
-// }
+func (e *engine) GetHTMLStatuses() []StatusHTML {
+	list := []StatusHTML{}
+	for _, r := range e.RunningRunners() {
+		list = append(list, HTMLify(r))
+	}
+	return list
+}
 
 func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.Duration) error {
 	if _, err := pcommon.Format.TimeFrameToLabel(timeframe); err != nil {
