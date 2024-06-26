@@ -14,9 +14,9 @@ const (
 	TIMEFRAME_DELETION_KEY = "timeframe_deletion"
 )
 
-func buildTimeFrameDeletionKey(setID string, stateID string, timeframe time.Duration) string {
+func buildTimeFrameDeletionKey(setID string, stateID pcommon.AssetType, timeframe time.Duration) string {
 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
-	return TIMEFRAME_DELETION_KEY + "-" + setID + "-" + stateID + "-" + label
+	return TIMEFRAME_DELETION_KEY + "-" + setID + "-" + string(stateID) + "-" + label
 }
 
 func printTimeframeDeletionStatus(runner *gorunner.Runner, state *setlib.AssetState) {

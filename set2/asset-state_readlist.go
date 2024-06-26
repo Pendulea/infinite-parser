@@ -8,6 +8,7 @@ import (
 
 	badger "github.com/dgraph-io/badger/v4"
 	pcommon "github.com/pendulea/pendule-common"
+	"github.com/samber/lo"
 )
 
 type assetReadlist struct {
@@ -81,7 +82,7 @@ func (rl *assetReadlist) GetTimeFrameList() []time.Duration {
 	for _, r := range *rl.readList {
 		list = append(list, r.Timeframe)
 	}
-	return pcommon.Unique(list)
+	return lo.Uniq(list)
 }
 
 func (state *AssetState) pullReadList() error {

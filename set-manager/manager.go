@@ -3,7 +3,6 @@ package manager
 import (
 	"fmt"
 	"os"
-	"pendulev2/dtype"
 	setlib "pendulev2/set2"
 	engine "pendulev2/task-engine"
 	"sync"
@@ -17,7 +16,7 @@ type SetManager struct {
 	mu   sync.RWMutex
 }
 
-func (pm *SetManager) Add(newSet dtype.SetSettings, firstTimeAdd bool) error {
+func (pm *SetManager) Add(newSet pcommon.SetSettings, firstTimeAdd bool) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -76,11 +75,11 @@ func Init(activeSets *setlib.WorkingSets, initSetPath string) *SetManager {
 	}
 	plp := getJSONPath()
 	var errr error = nil
-	var sets []dtype.SetSettings
+	var sets []pcommon.SetSettings
 	firstTimeAdd := false
 
 	if _, err := os.Stat(plp); err != nil {
-		if err := updateListToJSON([]dtype.SetSettings{}, plp); err != nil {
+		if err := updateListToJSON([]pcommon.SetSettings{}, plp); err != nil {
 			log.Fatalf("Error creating sets.json file: %s", err)
 		}
 		sets, errr = pullListFromJSON(initSetPath)

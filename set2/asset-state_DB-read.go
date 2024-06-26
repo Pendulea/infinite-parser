@@ -3,7 +3,6 @@ package set2
 import (
 	"bytes"
 	"errors"
-	"pendulev2/dtype"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
@@ -15,7 +14,7 @@ func (state *AssetState) NewTX(update bool) *badger.Txn {
 	return state.SetRef.db.NewTransaction(update)
 }
 
-func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator) (dtype.DataList, error) {
+func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator) (pcommon.DataList, error) {
 	if t1 < t0 {
 		return nil, errors.New("t1 must be after t0")
 	}
@@ -42,7 +41,7 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 		defer iter.Close()
 	}
 
-	ret := dtype.NewTypeTimeArray(state.Type())
+	ret := pcommon.NewTypeTimeArray(state.Type())
 
 	// Iterate over the keys and retrieve values within the range
 	for iter.Seek(startKey); iter.Valid(); iter.Next() {
@@ -61,7 +60,7 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 			return nil, err
 		}
 
-		unraw, err := dtype.ParseTypeData(state.Type(), value, dataTime)
+		unraw, err := pcommon.ParseTypeData(state.Type(), value, dataTime)
 		if err != nil {
 			return nil, err
 		}
@@ -78,13 +77,13 @@ type DataLimitSettings struct {
 	StartByEnd     bool
 }
 
-func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool) (dtype.DataList, error) {
+func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool) (pcommon.DataList, error) {
 	timeFrame := settings.TimeFrame
 	limit := settings.Limit
 	offsetUnixTime := settings.OffsetUnixTime
 	startByEnd := settings.StartByEnd
 
-	ret := dtype.NewTypeTimeArray(state.Type())
+	ret := pcommon.NewTypeTimeArray(state.Type())
 
 	if limit > 1 && !state.IsTimeframeSupported(timeFrame) {
 		return nil, nil
@@ -144,7 +143,7 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 			return nil, err
 		}
 
-		unraw, err := dtype.ParseTypeData(state.Type(), value, rowTime)
+		unraw, err := pcommon.ParseTypeData(state.Type(), value, rowTime)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +175,7 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 	return ret, nil
 }
 
-func (state *AssetState) getSingleData(settings DataLimitSettings) (dtype.Data, pcommon.TimeUnit, error) {
+func (state *AssetState) getSingleData(settings DataLimitSettings) (pcommon.Data, pcommon.TimeUnit, error) {
 	settings.Limit = 1
 	list, err := state.GetDataLimit(settings, false)
 	if err != nil {

@@ -10,17 +10,7 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
-type GetStatusResponse struct {
-	CountPendingTasks  int                 `json:"count_pending_tasks"`
-	CountRunningTasks  int                 `json:"count_running_tasks"`
-	CSVStatuses        []engine.CSVStatus  `json:"csv_statuses"`
-	HTMLStatuses       []engine.StatusHTML `json:"html_statuses"`
-	CPUCount           int                 `json:"cpu_count"`
-	AvailableMemory    uint64              `json:"available_memory"`
-	AvailableDiskSpace uint64              `json:"available_disk_space"`
-}
-
-func (s *RPCService) GetStatus(payload pcommon.RPCRequestPayload) (*GetStatusResponse, error) {
+func (s *RPCService) GetStatus(payload pcommon.RPCRequestPayload) (*pcommon.GetStatusResponse, error) {
 	// start := time.Now()
 	status, err := engine.GetCSVList()
 	if err != nil {
@@ -38,7 +28,7 @@ func (s *RPCService) GetStatus(payload pcommon.RPCRequestPayload) (*GetStatusRes
 		diskSize = stat.Bavail * uint64(stat.Bsize)
 	}
 
-	r := &GetStatusResponse{
+	r := &pcommon.GetStatusResponse{
 		CountPendingTasks:  engine.Engine.CountQueued(),
 		CountRunningTasks:  engine.Engine.CountRunning(),
 		CSVStatuses:        status,
@@ -46,6 +36,7 @@ func (s *RPCService) GetStatus(payload pcommon.RPCRequestPayload) (*GetStatusRes
 		CPUCount:           12,
 		AvailableMemory:    v.Available,
 		AvailableDiskSpace: diskSize,
+		MinTimeframe:       pcommon.Env.MIN_TIME_FRAME.Milliseconds(),
 	}
 
 	// fmt.Println("GetStatus took", time.Since(start))

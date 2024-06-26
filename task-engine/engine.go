@@ -29,8 +29,8 @@ func (e *engine) Init(activeSets *setlib.WorkingSets) {
 	}
 }
 
-func (e *engine) GetHTMLStatuses() []StatusHTML {
-	list := []StatusHTML{}
+func (e *engine) GetHTMLStatuses() []pcommon.StatusHTML {
+	list := []pcommon.StatusHTML{}
 	for _, r := range e.RunningRunners() {
 		list = append(list, HTMLify(r))
 	}

@@ -31,19 +31,6 @@ func (sk *AssetState) GetLastDataTimeKey(timeFrameLabel string) []byte {
 	return append(prefix, []byte(timeFrameLabel)...)
 }
 
-// func (sk *AssetState) IsDataKey(key []byte) bool {
-// 	if len(key) > 3 {
-// 		keyFormated := key[2:]
-// 		if keyFormated[0] == byte(DATA_COLUMN) {
-// 			keyFormated = keyFormated[1:]
-// 			if len(keyFormated) >= 10 && len(keyFormated) <= 18 {
-// 				return true
-// 			}
-// 		}
-// 	}
-// 	return false
-// }
-
 func (sk *AssetState) ParseDataKey(key []byte) (timeFrameLabel string, time pcommon.TimeUnit, err error) {
 	//remove first 2 bytes
 	keyFormated := key[2:]

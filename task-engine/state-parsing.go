@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"pendulev2/dtype"
 	setlib "pendulev2/set2"
 	"strconv"
 	"strings"
@@ -235,9 +234,9 @@ func isHeader(row []string) bool {
 	return false
 }
 
-func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) dtype.DataList {
-	bucket := dtype.NewTypeTimeArray(state.Type())
-	tmpList := dtype.NewTypeTimeArray(state.Type())
+func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) pcommon.DataList {
+	bucket := pcommon.NewTypeTimeArray(state.Type())
+	tmpList := pcommon.NewTypeTimeArray(state.Type())
 
 	prevTime := pcommon.TimeUnit(0)
 	for _, line := range lines {
@@ -248,13 +247,13 @@ func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) d
 			currentTime *= div
 		}
 		if prevTime == 0 {
-			tmpList = tmpList.Append(dtype.NewTypeTime(state.Type(), line.Value, currentTime))
+			tmpList = tmpList.Append(pcommon.NewTypeTime(state.Type(), line.Value, currentTime))
 		} else {
 			if prevTime == currentTime {
-				tmpList = tmpList.Append(dtype.NewTypeTime(state.Type(), line.Value, currentTime))
+				tmpList = tmpList.Append(pcommon.NewTypeTime(state.Type(), line.Value, currentTime))
 			} else {
 				bucket = bucket.Append(tmpList.Aggregate(pcommon.Env.MIN_TIME_FRAME, prevTime))
-				tmpList = dtype.NewTypeTimeArray(state.Type()).Append(dtype.NewTypeTime(state.Type(), line.Value, currentTime))
+				tmpList = pcommon.NewTypeTimeArray(state.Type()).Append(pcommon.NewTypeTime(state.Type(), line.Value, currentTime))
 			}
 		}
 		prevTime = currentTime

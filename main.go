@@ -2,18 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"pendulev2/rpc"
 	manager "pendulev2/set-manager"
 	setlib "pendulev2/set2"
 	engine "pendulev2/task-engine"
 
-	// engine "pendulev2/task-engine"
-
-	// engine "pendule/task-engine"
 	"pendulev2/util"
 	"strings"
 	"sync"
@@ -21,11 +20,9 @@ import (
 
 	pcommon "github.com/pendulea/pendule-common"
 
-	// "pendule/rpc"
 	"syscall"
 
 	"github.com/gorilla/websocket"
-	// "github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -45,42 +42,9 @@ func main() {
 		log.Fatal("CSV_DIR is not set")
 	}
 
-	manager.Init(&activeSets, os.Getenv("SETS_PATH"))
-	// rpc.Init(&activeSets, pairs.Init(&activeSets, os.Getenv("PAIRS_PATH")))
-	// go initWS()
+	rpc.Init(&activeSets, manager.Init(&activeSets, os.Getenv("SETS_PATH")))
+	go initWS()
 	go initScheduleAutoCSVDelete()
-
-	go func() {
-		time.Sleep(time.Second * 2)
-		// for _, set := range activeSets {
-		// p := set.Assets[setlib.VOLUME]
-		// engine.Engine.DeleteTimeframe(p, time.Second)
-		// }
-		// 	// 	fmt.Println(p.Precision())
-		// 	settings := setlib.DataLimitSettings{
-		// 		Limit:          100,
-		// 		StartByEnd:     false,
-		// 		TimeFrame:      time.Second,
-		// 		OffsetUnixTime: 0,
-		// 	}
-		// 	list, err := p.GetDataLimit(settings, false)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 	}
-		// 	for _, v := range list.(dtype.UnitTimeArray) {
-		// 		fmt.Println(v.String())
-		// 	}
-		// }
-
-		// s := engine.CSVBuildingOrderPacked{From: 1587607445, To: 1687607455, Timeframe: 1000}
-		// s.Orders = make([][]string, 0)
-		// s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "volume", "plus", "minus", "time"})
-		// s.Orders = append(s.Orders, []string{"CTSIUSDT_spot", "price", "open", "high", "time", "average"})
-		// if err := engine.Engine.AddCSVBuilding(s); err != nil {
-		// 	fmt.Println(err)
-		// }
-		// set.AddTimeframe(time.Hour*4, engine.Engine.AddTimeframeIndexing)
-	}()
 
 	sigs := make(chan os.Signal, 1)
 	// Create a channel to communicate that the signal has been handled
@@ -133,39 +97,39 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// func handler(w http.ResponseWriter, r *http.Request) {
-// 	conn, err := upgrader.Upgrade(w, r, nil)
-// 	if err != nil {
-// 		log.Println(err)
-// 		return
-// 	}
-// 	defer conn.Close()
-// 	wsConns.Store(conn.RemoteAddr(), conn)
+func handler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer conn.Close()
+	wsConns.Store(conn.RemoteAddr(), conn)
 
-// 	defer func() {
-// 		wsConns.Delete(conn.RemoteAddr())
-// 		conn.Close()
-// 	}()
+	defer func() {
+		wsConns.Delete(conn.RemoteAddr())
+		conn.Close()
+	}()
 
-// 	for {
-// 		messageType, message, err := conn.ReadMessage()
-// 		if err != nil {
-// 			log.Println("read:", err)
-// 			break
-// 		}
-// 		response := pcommon.RPC.HandleServerRequest(message, rpc.Service)
-// 		jsonResponse, err := json.Marshal(response)
-// 		if err != nil {
-// 			log.Println("json:", err)
-// 			break
-// 		}
-// 		err = conn.WriteMessage(messageType, jsonResponse)
-// 		if err != nil {
-// 			log.Println("write:", err)
-// 			break
-// 		}
-// 	}
-// }
+	for {
+		messageType, message, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			break
+		}
+		response := pcommon.RPC.HandleServerRequest(message, rpc.Service)
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			log.Println("json:", err)
+			break
+		}
+		err = conn.WriteMessage(messageType, jsonResponse)
+		if err != nil {
+			log.Println("write:", err)
+			break
+		}
+	}
+}
 
 func initScheduleAutoCSVDelete() {
 	csvDIR := os.Getenv("CSV_DIR")
@@ -197,21 +161,21 @@ func initScheduleAutoCSVDelete() {
 	util.ScheduleTask(context.Background(), 3, 3, task)
 }
 
-// func initWS() {
-// 	mux := http.NewServeMux()
-// 	mux.HandleFunc("/", handler)
-// 	mux.HandleFunc("/download/", fileDownloadHandler)
+func initWS() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handler)
+	mux.HandleFunc("/download/", fileDownloadHandler)
 
-// 	server = &http.Server{
-// 		Addr:    ":" + pcommon.Env.PARSER_SERVER_PORT,
-// 		Handler: mux,
-// 	}
+	server = &http.Server{
+		Addr:    ":" + pcommon.Env.PARSER_SERVER_PORT,
+		Handler: mux,
+	}
 
-// 	log.Infof("Websocket server running on wss://localhost:%s", pcommon.Env.PARSER_SERVER_PORT)
-// 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-// 		log.Fatalf("ListenAndServe(): %s", err)
-// 	}
-// }
+	log.Infof("Websocket server running on wss://localhost:%s", pcommon.Env.PARSER_SERVER_PORT)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("ListenAndServe(): %s", err)
+	}
+}
 
 func initLogger() {
 	// Log as JSON instead of the default ASCII formatter.

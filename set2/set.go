@@ -2,8 +2,8 @@ package set2
 
 import (
 	"errors"
+	"fmt"
 	"log"
-	"pendulev2/dtype"
 	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
@@ -14,16 +14,16 @@ import (
 
 type Set struct {
 	initialized bool
-	Assets      map[string]*AssetState
-	Settings    dtype.SetSettings
+	Assets      map[pcommon.AssetType]*AssetState
+	Settings    pcommon.SetSettings
 	db          *badger.DB
 }
 
-func (set *Set) JSON() (*dtype.SetJSON, error) {
-	json := dtype.SetJSON{
+func (set *Set) JSON() (*pcommon.SetJSON, error) {
+	json := pcommon.SetJSON{
 		Settings: set.Settings,
 		Size:     set.Size(),
-		Assets:   make([]dtype.AssetJSON, 0),
+		Assets:   make([]pcommon.AssetJSON, 0),
 	}
 
 	for _, asset := range set.Assets {
@@ -58,7 +58,8 @@ func (set *Set) ID() string {
 	return set.Settings.IDString()
 }
 
-func NewSet(settings dtype.SetSettings) (*Set, error) {
+func NewSet(settings pcommon.SetSettings) (*Set, error) {
+	fmt.Println(settings)
 	if err := pcommon.File.EnsureDir(pcommon.Env.DATABASES_DIR); err != nil {
 		return nil, err
 	}
@@ -76,14 +77,15 @@ func NewSet(settings dtype.SetSettings) (*Set, error) {
 	}).Info("DB open")
 
 	set := &Set{
-		db: db,
+		db:       db,
+		Settings: settings,
 	}
 
-	set.Assets = make(map[string]*AssetState)
+	set.Assets = make(map[pcommon.AssetType]*AssetState)
 	for _, asset := range settings.Assets {
 		a, ok := DEFAULT_ASSETS[asset.ID]
 		if !ok {
-			return nil, errors.New("Unknown asset: " + asset.ID)
+			return nil, errors.New("Unknown asset: " + string(asset.ID))
 		}
 		set.Assets[asset.ID] = a.Copy(set, asset.MinDataDate, asset.ID, asset.Decimals)
 	}

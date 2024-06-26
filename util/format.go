@@ -6,11 +6,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"reflect"
 	"time"
 	"unsafe"
+
+	pcommon "github.com/pendulea/pendule-common"
 )
 
 func ScheduleTaskEvery(ctx context.Context, d time.Duration, task func()) {
@@ -106,11 +107,6 @@ func BytesToInt64(b []byte) int64 {
 	return n
 }
 
-func RoundFloat(val float64, precision uint) float64 {
-	ratio := math.Pow(10, float64(precision))
-	return math.Round(val*ratio) / ratio
-}
-
 func Len(slice interface{}) (int, error) {
 	v := reflect.ValueOf(slice)
 	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
@@ -127,4 +123,12 @@ func WriteToFile(filename, content string) error {
 	defer file.Close()
 	_, err = file.WriteString(content)
 	return err
+}
+
+func ColumnNamesToStrings(columns []pcommon.ColumnName) []string {
+	names := make([]string, len(columns))
+	for i, col := range columns {
+		names[i] = string(col)
+	}
+	return names
 }

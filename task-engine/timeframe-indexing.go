@@ -16,9 +16,9 @@ const (
 	TIMEFRAME_INDEXING_KEY = "timeframe_indexing"
 )
 
-func buildTimeFrameIndexingKey(setID string, stateID string, timeframe time.Duration) string {
+func buildTimeFrameIndexingKey(setID string, stateID pcommon.AssetType, timeframe time.Duration) string {
 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
-	return TIMEFRAME_INDEXING_KEY + "-" + setID + "-" + stateID + "-" + label
+	return TIMEFRAME_INDEXING_KEY + "-" + setID + "-" + string(stateID) + "-" + label
 }
 
 func printTimeframeIndexingStatus(runner *gorunner.Runner, state *setlib.AssetState) {

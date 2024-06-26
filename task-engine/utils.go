@@ -217,12 +217,12 @@ func haveSameTimeframe(r1, r2 *gorunner.Runner) bool {
 // 	return nil
 // }
 
-func GetCSVList() ([]CSVStatus, error) {
+func GetCSVList() ([]pcommon.CSVStatus, error) {
 	list, err := pcommon.File.GetSortedFilenamesByDate(os.Getenv("CSV_DIR"))
 	if err != nil {
 		return nil, err
 	}
-	statuses := []CSVStatus{}
+	statuses := []pcommon.CSVStatus{}
 	used := map[string]bool{}
 
 	for _, runner := range Engine.RunningRunners() {
@@ -247,13 +247,8 @@ func GetCSVList() ([]CSVStatus, error) {
 	return statuses, nil
 }
 
-type StatusHTML struct {
-	AssetID string `json:"asset_id"`
-	HTML    string `json:"html"`
-}
-
-func HTMLify(r *gorunner.Runner) StatusHTML {
-	html := StatusHTML{}
+func HTMLify(r *gorunner.Runner) pcommon.StatusHTML {
+	html := pcommon.StatusHTML{}
 	// setID, _ := gorunner.GetArg[string](r.Args, ARG_VALUE_SET_ID)
 	// html.SetID = setID
 
