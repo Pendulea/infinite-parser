@@ -91,7 +91,7 @@ func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
 
 	r := buildStateParsingRunner(asset, *date)
 	r.AddProcessCallback(func(engine *gorunner.Engine, runner *gorunner.Runner) {
-		if runner.Size().Max() > 0 && runner.GetError() == nil {
+		if runner.CountSteps() >= 4 && runner.GetError() == nil {
 			e.RunAssetTasks(asset)
 		}
 	})

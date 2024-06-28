@@ -125,7 +125,6 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 
 		runner.SetSize().Max(int64(len(csvLines)))
 		runner.AddStep()
-
 		dataList := AggregateLinesToValuesToPrices(csvLines, state)
 		runner.SetStatValue(STAT_VALUE_DATA_COUNT, int64(dataList.Len()))
 		runner.AddStep()
