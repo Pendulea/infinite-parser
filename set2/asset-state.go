@@ -134,11 +134,3 @@ func (state *AssetState) PrintReadList() {
 	fmt.Println()
 	fmt.Println()
 }
-
-func (state *AssetState) BuildArchiveFolderPath() string {
-	return fmt.Sprintf("%s/%s/%s", pcommon.Env.ARCHIVES_DIR, state.SetRef.ID(), state.ID())
-}
-
-func (state *AssetState) BuildArchiveFilePath(date string, ext string) string {
-	return fmt.Sprintf("%s/%s.%s", state.BuildArchiveFolderPath(), date, ext)
-}

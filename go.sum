@@ -56,6 +56,12 @@ github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyua
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/pendulea/pendule-common v0.7.9 h1:JKGh4zJaJDf6wOFglDDfx49pHkrPIgyKZ1BURXlB3zE=
 github.com/pendulea/pendule-common v0.7.9/go.mod h1:5t/0tWs3l5fXSzZPIRgkUAa8GUkBy7QtjZRbkePh+Tg=
+github.com/pendulea/pendule-common v0.8.1 h1:gJMpHUoL3sTwNtWssuhrGE7j4uYasBewlste4DYJBb8=
+github.com/pendulea/pendule-common v0.8.1/go.mod h1:5t/0tWs3l5fXSzZPIRgkUAa8GUkBy7QtjZRbkePh+Tg=
+github.com/pendulea/pendule-common v0.8.2 h1:U3QKulWedmYLEcWV61wlUWGTmB7Ot9UWOFJJ+jtxrf4=
+github.com/pendulea/pendule-common v0.8.2/go.mod h1:5t/0tWs3l5fXSzZPIRgkUAa8GUkBy7QtjZRbkePh+Tg=
+github.com/pendulea/pendule-common v0.8.3 h1:h8isK7dNiSO56uBPSyFpSpA3W0okAmPJ428WgG5gyDQ=
+github.com/pendulea/pendule-common v0.8.3/go.mod h1:5t/0tWs3l5fXSzZPIRgkUAa8GUkBy7QtjZRbkePh+Tg=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

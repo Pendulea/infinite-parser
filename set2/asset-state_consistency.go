@@ -12,7 +12,7 @@ func (state *AssetState) IsConsistent(timeframe time.Duration) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	minEndAllowed, _ := pcommon.Format.StrDateToDate(pcommon.Format.BuildDateStr(pcommon.Env.MAX_DAYS_BACKWARD_FOR_CONSISTENCY - 1))
+	minEndAllowed, _ := pcommon.Format.StrDateToDate(pcommon.Format.BuildDateStr(state.consistencyMaxLookbackDays - 1))
 	return pcommon.NewTimeUnitFromTime(minEndAllowed) < t, nil
 }
 
@@ -27,7 +27,7 @@ func (state *AssetState) ShouldSync() (*string, error) {
 		return &s, nil
 	}
 
-	offset := time.Duration(pcommon.Env.MAX_DAYS_BACKWARD_FOR_CONSISTENCY-1) * 24 * time.Hour
+	offset := time.Duration(state.consistencyMaxLookbackDays-1) * 24 * time.Hour
 
 	max := pcommon.NewTimeUnitFromTime(time.Now()).Add(-offset)
 	if t < max {

@@ -1,13 +1,15 @@
 package engine
 
 import (
-	"errors"
 	"os"
 	setlib "pendulev2/set2"
 	"time"
 
+	util "pendulev2/util"
+
 	"github.com/fantasim/gorunner"
 	pcommon "github.com/pendulea/pendule-common"
+	log "github.com/sirupsen/logrus"
 )
 
 var Engine *engine = nil
@@ -42,7 +44,7 @@ func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.D
 		return err
 	}
 	if timeframe <= pcommon.Env.MIN_TIME_FRAME {
-		return errors.New("timeframe is too small")
+		return util.ErrTimeframeTooSmall
 	}
 
 	r := buildTimeframeIndexingRunner(state, timeframe)
@@ -50,9 +52,9 @@ func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.D
 	return nil
 }
 
-func (e *engine) DeleteTimeframe(state *setlib.AssetState, timeframe time.Duration) error {
+func (e *engine) AddTimeframeDeletion(state *setlib.AssetState, timeframe time.Duration) error {
 	if timeframe < pcommon.Env.MIN_TIME_FRAME {
-		return errors.New("timeframe is too small")
+		return util.ErrTimeframeTooSmall
 	}
 
 	r := buildTimeframeDeletionRunner(state, timeframe)
@@ -70,41 +72,46 @@ func (e *engine) AddCSVBuilding(packedOrder CSVBuildingOrderPacked) error {
 	return nil
 }
 
-func (e *engine) AddStateParsing(state *setlib.AssetState) error {
-	date, err := state.ShouldSync()
+func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
+	date, err := asset.ShouldSync()
 	if err != nil {
 		return err
 	}
 	if date == nil {
-		return errors.New("already sync")
+		return util.ErrAlreadySync
 	}
 
-	info, err := os.Stat(state.BuildArchiveFilePath(*date, "zip"))
+	info, err := os.Stat(asset.SetRef.Settings.BuildArchiveFilePath(asset.ID(), *date, "zip"))
 	if err != nil {
 		return err
 	}
 	if info.ModTime().Unix() > time.Now().Add(-time.Minute).Unix() {
-		return errors.New("file is too recent")
+		return util.ErrFileIsTooRecent
 	}
 
-	r := buildStateParsingRunner(state, *date)
+	r := buildStateParsingRunner(asset, *date)
 	r.AddProcessCallback(func(engine *gorunner.Engine, runner *gorunner.Runner) {
 		if runner.Size().Max() > 0 && runner.GetError() == nil {
-			e.AddStateParsing(state)
-			// for _, asset := range set.Assets {
-			// 	tfs, err := asset.GetTimeFrameToReindex()
-			// 	if err != nil {
-			// 		log.WithFields(log.Fields{
-			// 			"set":   set.ID(),
-			// 			"state": asset.ID(),
-			// 			"error": err.Error(),
-			// 		}).Error("Error getting time frame list")
-			// 	}
-			// 	for _, timeframe := range tfs {
-			// 		e.AddTimeframeIndexing(asset, timeframe)
-			// 	}
-			// }
+			e.RunAssetTasks(asset)
 		}
 	})
+	e.Add(r)
+	return nil
+}
+
+func (e *engine) RunAssetTasks(asset *setlib.AssetState) error {
+	Engine.AddStateParsing(asset)
+	tfs, err := asset.GetTimeFrameToReindex()
+	if err != nil {
+		log.WithFields(log.Fields{
+			"set":   asset.ID(),
+			"state": asset.ID(),
+			"error": err.Error(),
+		}).Error("Error getting time frame list")
+		return err
+	}
+	for _, tf := range tfs {
+		Engine.AddTimeframeIndexing(asset, tf)
+	}
 	return nil
 }

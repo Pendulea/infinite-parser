@@ -52,10 +52,6 @@ func (state *AssetState) Store(data map[pcommon.TimeUnit][]byte, timeframe time.
 }
 
 func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDate func(pcommon.TimeUnit, int)) (int, error) {
-	// if timeFrame == pcommon.Env.MIN_TIME_FRAME {
-	// 	return 0, errors.New("cannot delete MIN_TIME_FRAME date")
-	// }
-
 	label, err := pcommon.Format.TimeFrameToLabel(timeFrame)
 	if err != nil {
 		return 0, err

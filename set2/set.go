@@ -1,8 +1,8 @@
 package set2
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -17,6 +17,7 @@ type Set struct {
 	Assets      map[pcommon.AssetType]*AssetState
 	Settings    pcommon.SetSettings
 	db          *badger.DB
+	cancels     []context.CancelFunc
 }
 
 func (set *Set) JSON() (*pcommon.SetJSON, error) {
@@ -59,7 +60,6 @@ func (set *Set) ID() string {
 }
 
 func NewSet(settings pcommon.SetSettings) (*Set, error) {
-	fmt.Println(settings)
 	if err := pcommon.File.EnsureDir(pcommon.Env.DATABASES_DIR); err != nil {
 		return nil, err
 	}
@@ -79,6 +79,7 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 	set := &Set{
 		db:       db,
 		Settings: settings,
+		cancels:  make([]context.CancelFunc, 0),
 	}
 
 	set.Assets = make(map[pcommon.AssetType]*AssetState)
@@ -89,11 +90,16 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 		}
 		set.Assets[asset.ID] = a.Copy(set, asset.MinDataDate, asset.ID, asset.Decimals)
 	}
+
 	set.initialized = true
 	return set, nil
 }
 
 func (s *Set) Close() {
+	for _, cancel := range s.cancels {
+		cancel()
+	}
+
 	if s.db != nil {
 		logrus.WithFields(logrus.Fields{
 			"symbol": s.ID(),
@@ -117,4 +123,8 @@ func (s *Set) RemoveTimeframe(timeframe time.Duration, engineCB func(state *Asse
 	for _, asset := range s.Assets {
 		engineCB(asset, timeframe)
 	}
+}
+
+func (s *Set) AddCancelFunc(cancel context.CancelFunc) {
+	s.cancels = append(s.cancels, cancel)
 }

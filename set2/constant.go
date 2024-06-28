@@ -7,9 +7,8 @@ import (
 const MAX_CONSISTENCY_DAYS = 3
 
 var DEFAULT_ASSETS = map[pcommon.AssetType]AssetState{
-	pcommon.Asset.PRICE: newUninitalizedAssetState([2]byte{0, 0}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
-
-	pcommon.Asset.VOLUME: newUninitalizedAssetState([2]byte{0, 1}, pcommon.QUANTITY, MAX_CONSISTENCY_DAYS),
+	pcommon.Asset.SPOT_PRICE:  newUninitalizedAssetState([2]byte{0, 0}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
+	pcommon.Asset.SPOT_VOLUME: newUninitalizedAssetState([2]byte{0, 1}, pcommon.QUANTITY, MAX_CONSISTENCY_DAYS),
 
 	pcommon.Asset.BOOK_DEPTH_P1: newUninitalizedAssetState([2]byte{0, 2}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
 	pcommon.Asset.BOOK_DEPTH_P2: newUninitalizedAssetState([2]byte{0, 3}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
@@ -29,4 +28,7 @@ var DEFAULT_ASSETS = map[pcommon.AssetType]AssetState{
 	pcommon.Asset.METRIC_SUM_TAKER_LONG_SHORT_VOL_RATIO:    newUninitalizedAssetState([2]byte{0, 16}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
 
 	pcommon.Asset.CIRCULATING_SUPPLY: newUninitalizedAssetState([2]byte{0, 17}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
+
+	pcommon.Asset.FUTURES_PRICE:  newUninitalizedAssetState([2]byte{0, 18}, pcommon.UNIT, MAX_CONSISTENCY_DAYS),
+	pcommon.Asset.FUTURES_VOLUME: newUninitalizedAssetState([2]byte{0, 19}, pcommon.QUANTITY, MAX_CONSISTENCY_DAYS),
 }

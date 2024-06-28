@@ -1,11 +1,14 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	setlib "pendulev2/set2"
 	engine "pendulev2/task-engine"
+	"pendulev2/util"
 	"sync"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	log "github.com/sirupsen/logrus"
@@ -49,20 +52,17 @@ func (pm *SetManager) Add(newSet pcommon.SetSettings, firstTimeAdd bool) error {
 		return err
 	}
 
-	if set != nil {
-		for _, asset := range set.Assets {
-			tfs, err := asset.GetTimeFrameToReindex()
-			if err != nil {
-				return err
-			}
-			for _, tf := range tfs {
-				engine.Engine.AddTimeframeIndexing(asset, tf)
-			}
-		}
+	if !firstTimeAdd && set != nil {
+		set.RunValueLogGC()
 	}
 
-	if !firstTimeAdd {
-		set.RunValueLogGC()
+	if set != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		set.AddCancelFunc(cancel)
+		util.ScheduleTaskEvery(ctx, time.Minute*3, func() {
+			runSetTasks(set)
+		})
+		runSetTasks(set)
 	}
 
 	return nil
@@ -79,12 +79,12 @@ func Init(activeSets *setlib.WorkingSets, initSetPath string) *SetManager {
 	firstTimeAdd := false
 
 	if _, err := os.Stat(plp); err != nil {
-		if err := updateListToJSON([]pcommon.SetSettings{}, plp); err != nil {
-			log.Fatalf("Error creating sets.json file: %s", err)
-		}
 		sets, errr = pullListFromJSON(initSetPath)
 		if errr != nil {
 			log.Fatalf("Error reading sets: %s", errr)
+		}
+		if err := updateListToJSON([]pcommon.SetSettings{}, plp); err != nil {
+			log.Fatalf("Error creating sets.json file: %s", err)
 		}
 		firstTimeAdd = true
 	} else {
@@ -105,4 +105,10 @@ func Init(activeSets *setlib.WorkingSets, initSetPath string) *SetManager {
 	}).Info("Successfully loaded sets.json file")
 
 	return pm
+}
+
+func runSetTasks(set *setlib.Set) {
+	for _, asset := range set.Assets {
+		engine.Engine.RunAssetTasks(asset)
+	}
 }

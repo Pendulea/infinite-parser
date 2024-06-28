@@ -23,6 +23,12 @@ func pullListFromJSON(setsPath string) ([]pcommon.SetSettings, error) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, fmt.Errorf("sets.json file is not a valid json file: %s", err)
 	}
+	for _, set := range list {
+		if err := set.IsValid(); err != nil {
+			return nil, err
+		}
+	}
+
 	return list, nil
 }
 

@@ -62,7 +62,7 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 				"aggregated": pcommon.Format.LargeNumberToShortString(totalRows),
 				"parsed":     pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
 				"done":       "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully stored%s %s (%s)", asset.SetRef.ID(), asset.ID(), date))
+			}).Info(fmt.Sprintf("Successfully stored %s %s (%s)", asset.SetRef.ID(), asset.ID(), date))
 		}
 	}
 }
@@ -76,9 +76,10 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 			return err
 		}
 
-		archiveFilePathCSV := state.BuildArchiveFilePath(date, "csv")
-		archiveFilePathZIP := state.BuildArchiveFilePath(date, "zip")
-		archiveFolderPath := state.BuildArchiveFolderPath()
+		archiveFilePathCSV := state.SetRef.Settings.BuildArchiveFilePath(state.ID(), date, "csv")
+		archiveFilePathZIP := state.SetRef.Settings.BuildArchiveFilePath(state.ID(), date, "zip")
+
+		archiveFolderPath := state.SetRef.Settings.BuildArchiveFolderPath(state.ID())
 
 		defer func() {
 			if os.Remove(archiveFilePathCSV) == nil {
@@ -163,7 +164,7 @@ func parseFromCSVLine(fields []string) (CSVLine, error) {
 }
 
 func ParseFromCSV(asset *setlib.AssetState, date string) ([]CSVLine, error) {
-	file, err := os.Open(asset.BuildArchiveFilePath(date, "csv"))
+	file, err := os.Open(asset.SetRef.Settings.BuildArchiveFilePath(asset.ID(), date, "csv"))
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +275,6 @@ func buildStateParsingRunner(state *setlib.AssetState, date string) *gorunner.Ru
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
-
 			if !haveSameFullIDs(r, runner) {
 				continue
 			}
