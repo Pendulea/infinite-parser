@@ -9,9 +9,8 @@ import (
 )
 
 type AddTimeframeRequest struct {
-	SetID     string            `json:"set_id"`
-	AssetID   pcommon.AssetType `json:"asset_id"`
-	Timeframe int64             `json:"timeframe"` //timeframe in milliseconds
+	SetID     string `json:"set_id"`
+	Timeframe int64  `json:"timeframe"` //timeframe in milliseconds
 }
 
 func (s *RPCService) AddTimeframe(payload pcommon.RPCRequestPayload) (interface{}, error) {
@@ -32,16 +31,6 @@ func (s *RPCService) AddTimeframe(payload pcommon.RPCRequestPayload) (interface{
 		return nil, util.ErrSetNotFound
 	}
 
-	asset, ok := set.Assets[r.AssetID]
-	if !ok {
-		return nil, util.ErrAssetNotFound
-	}
-
-	for _, tf := range asset.GetActiveTimeFrameList() {
-		if tf == timeframe {
-			return nil, util.ErrAlreadyExists
-		}
-	}
-
-	return nil, engine.Engine.AddTimeframeIndexing(asset, timeframe)
+	set.AddTimeframe(timeframe, engine.Engine.AddTimeframeIndexing)
+	return nil, nil
 }

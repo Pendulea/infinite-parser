@@ -14,9 +14,9 @@ const (
 	TIMEFRAME_DELETION_KEY = "timeframe_deletion"
 )
 
-func buildTimeFrameDeletionKey(setID string, stateID pcommon.AssetType, timeframe time.Duration) string {
+func buildTimeFrameDeletionKey(stateAddress pcommon.AssetAddress, timeframe time.Duration) string {
 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
-	return TIMEFRAME_DELETION_KEY + "-" + setID + "-" + string(stateID) + "-" + label
+	return TIMEFRAME_DELETION_KEY + "-" + string(stateAddress) + "-" + label
 }
 
 func printTimeframeDeletionStatus(runner *gorunner.Runner, state *setlib.AssetState) {
@@ -34,13 +34,13 @@ func printTimeframeDeletionStatus(runner *gorunner.Runner, state *setlib.AssetSt
 				"deleted":  pcommon.Format.LargeNumberToShortString(TOTAL_DELETED_TICKS),
 				"date":     pcommon.Format.FormatDateStr(date),
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Deleted %s rows on timeframe: %s (set: %s)", state.ID(), label, state.SetRef.ID()))
+			}).Info(fmt.Sprintf("Deleted %s rows on timeframe: %s (set: %s)", state.Address(), label, state.SetRef.ID()))
 
 		} else if runner.CountSteps() == 1 {
 			log.WithFields(log.Fields{
 				"deleted": pcommon.Format.LargeNumberToShortString(TOTAL_DELETED_TICKS),
 				"done":    "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully deleted %s rows on timeframe: %s (set: %s)", state.ID(), label, state.SetRef.ID()))
+			}).Info(fmt.Sprintf("Successfully deleted %s rows on timeframe: %s (set: %s)", state.Address(), label, state.SetRef.ID()))
 		}
 	}
 }
@@ -93,17 +93,17 @@ func addTimeframeDeletionRunnerProcess(runner *gorunner.Runner, state *setlib.As
 }
 
 func buildTimeframeDeletionRunner(state *setlib.AssetState, timeframe time.Duration) *gorunner.Runner {
-	runner := gorunner.NewRunner(buildTimeFrameDeletionKey(state.SetRef.ID(), state.ID(), timeframe))
+	runner := gorunner.NewRunner(buildTimeFrameDeletionKey(state.Address(), timeframe))
 
 	addTimeframe(runner, timeframe)
-	addAssetAndSetIDs(runner, []string{state.SetAndAssetID()})
+	addAssetAddresses(runner, []pcommon.AssetAddress{state.Address()})
 
 	addTimeframeDeletionRunnerProcess(runner, state, timeframe)
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameFullIDs(r, runner) {
+			if !haveSameAddresses(r, runner) {
 				continue
 			}
 

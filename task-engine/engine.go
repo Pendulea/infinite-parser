@@ -81,7 +81,7 @@ func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
 		return util.ErrAlreadySync
 	}
 
-	info, err := os.Stat(asset.SetRef.Settings.BuildArchiveFilePath(asset.ID(), *date, "zip"))
+	info, err := os.Stat(asset.SetRef.Settings.BuildArchiveFilePath(asset.Type(), *date, "zip"))
 	if err != nil {
 		return err
 	}
@@ -104,9 +104,8 @@ func (e *engine) RunAssetTasks(asset *setlib.AssetState) error {
 	tfs, err := asset.GetTimeFrameToReindex()
 	if err != nil {
 		log.WithFields(log.Fields{
-			"set":   asset.ID(),
-			"state": asset.ID(),
-			"error": err.Error(),
+			"address": asset.Address(),
+			"error":   err.Error(),
 		}).Error("Error getting time frame list")
 		return err
 	}

@@ -11,7 +11,6 @@ import (
 )
 
 func (s *RPCService) GetStatus(payload pcommon.RPCRequestPayload) (*pcommon.GetStatusResponse, error) {
-	// start := time.Now()
 	status, err := engine.GetCSVList()
 	if err != nil {
 		return nil, err
@@ -39,6 +38,5 @@ func (s *RPCService) GetStatus(payload pcommon.RPCRequestPayload) (*pcommon.GetS
 		MinTimeframe:       pcommon.Env.MIN_TIME_FRAME.Milliseconds(),
 	}
 
-	// fmt.Println("GetStatus took", time.Since(start))
 	return r, nil
 }

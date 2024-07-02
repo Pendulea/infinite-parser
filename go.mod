@@ -9,6 +9,7 @@ require (
 )
 
 require (
+	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
@@ -33,7 +34,7 @@ require (
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/pendulea/pendule-common v0.8.6
+	github.com/pendulea/pendule-common v0.9.5
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/samber/lo v1.39.0
 	github.com/shirou/gopsutil/v3 v3.24.5

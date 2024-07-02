@@ -57,7 +57,7 @@ func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDa
 		return 0, err
 	}
 
-	t0 := state.DataT0()
+	t0 := state.DataHistoryTime0()
 
 	// Open a BadgerDB transaction
 	txn := state.SetRef.db.NewTransaction(true)

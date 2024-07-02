@@ -30,14 +30,14 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 
 			log.WithFields(log.Fields{
 				"size": pcommon.Format.LargeBytesToShortString(archiveSize),
-			}).Info(fmt.Sprintf("Unzipping %s %s archive (%s)", asset.SetRef.ID(), asset.ID(), date))
+			}).Info(fmt.Sprintf("Unzipping %s %s archive (%s)", asset.SetRef.ID(), asset.Address(), date))
 			return
 		} else if runner.CountSteps() == 1 {
 			archiveSize := runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)
 
 			log.WithFields(log.Fields{
 				"size": pcommon.Format.LargeBytesToShortString(int64(float64(archiveSize) * 5.133)),
-			}).Info(fmt.Sprintf("Parsing %s %s (%s)", asset.SetRef.ID(), asset.ID(), date))
+			}).Info(fmt.Sprintf("Parsing %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
 
 		} else if runner.CountSteps() == 2 {
 			tradeParsed := pcommon.Format.LargeNumberToShortString(runner.Size().Current()) + "/" + pcommon.Format.LargeNumberToShortString(runner.Size().Max())
@@ -47,13 +47,13 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 				"speed":    pcommon.Format.LargeNumberToShortString(int64(runner.SizePerMillisecond()*1000)) + " line/s",
 				"total":    tradeParsed,
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Building %s %s (%s)", asset.SetRef.ID(), asset.ID(), date))
+			}).Info(fmt.Sprintf("Building %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
 		} else if runner.CountSteps() == 3 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
 			log.WithFields(log.Fields{
 				"aggregated": pcommon.Format.LargeNumberToShortString(totalRows),
 				"parsed":     pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
-			}).Info(fmt.Sprintf("Storing %s %s (%s)", asset.SetRef.ID(), asset.ID(), date))
+			}).Info(fmt.Sprintf("Storing %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
 
 		} else if runner.CountSteps() >= 4 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
@@ -62,7 +62,7 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 				"aggregated": pcommon.Format.LargeNumberToShortString(totalRows),
 				"parsed":     pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
 				"done":       "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully stored %s %s (%s)", asset.SetRef.ID(), asset.ID(), date))
+			}).Info(fmt.Sprintf("Successfully stored %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
 		}
 	}
 }
@@ -76,10 +76,10 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 			return err
 		}
 
-		archiveFilePathCSV := state.SetRef.Settings.BuildArchiveFilePath(state.ID(), date, "csv")
-		archiveFilePathZIP := state.SetRef.Settings.BuildArchiveFilePath(state.ID(), date, "zip")
+		archiveFilePathCSV := state.SetRef.Settings.BuildArchiveFilePath(state.Type(), date, "csv")
+		archiveFilePathZIP := state.SetRef.Settings.BuildArchiveFilePath(state.Type(), date, "zip")
 
-		archiveFolderPath := state.SetRef.Settings.BuildArchiveFolderPath(state.ID())
+		archiveFolderPath := state.SetRef.Settings.BuildArchiveFolderPath(state.Type())
 
 		defer func() {
 			if os.Remove(archiveFilePathCSV) == nil {
@@ -118,7 +118,7 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 		if len(csvLines) == 0 {
 			log.WithFields(log.Fields{
 				"set":   state.SetRef.ID(),
-				"asset": state.ID(),
+				"asset": state.Address(),
 				"date":  date,
 			}).Warn("No data found in CSV file")
 		}
@@ -163,7 +163,7 @@ func parseFromCSVLine(fields []string) (CSVLine, error) {
 }
 
 func ParseFromCSV(asset *setlib.AssetState, date string) ([]CSVLine, error) {
-	file, err := os.Open(asset.SetRef.Settings.BuildArchiveFilePath(asset.ID(), date, "csv"))
+	file, err := os.Open(asset.SetRef.Settings.BuildArchiveFilePath(asset.Type(), date, "csv"))
 	if err != nil {
 		return nil, err
 	}
@@ -235,8 +235,8 @@ func isHeader(row []string) bool {
 }
 
 func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) pcommon.DataList {
-	bucket := pcommon.NewTypeTimeArray(state.Type())
-	tmpList := pcommon.NewTypeTimeArray(state.Type())
+	bucket := pcommon.NewTypeTimeArray(state.DataType())
+	tmpList := pcommon.NewTypeTimeArray(state.DataType())
 
 	prevTime := pcommon.TimeUnit(0)
 	for _, line := range lines {
@@ -247,13 +247,13 @@ func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) p
 			currentTime *= div
 		}
 		if prevTime == 0 {
-			tmpList = tmpList.Append(pcommon.NewTypeTime(state.Type(), line.Value, currentTime))
+			tmpList = tmpList.Append(pcommon.NewTypeTime(state.DataType(), line.Value, currentTime))
 		} else {
 			if prevTime == currentTime {
-				tmpList = tmpList.Append(pcommon.NewTypeTime(state.Type(), line.Value, currentTime))
+				tmpList = tmpList.Append(pcommon.NewTypeTime(state.DataType(), line.Value, currentTime))
 			} else {
 				bucket = bucket.Append(tmpList.Aggregate(pcommon.Env.MIN_TIME_FRAME, prevTime))
-				tmpList = pcommon.NewTypeTimeArray(state.Type()).Append(pcommon.NewTypeTime(state.Type(), line.Value, currentTime))
+				tmpList = pcommon.NewTypeTimeArray(state.DataType()).Append(pcommon.NewTypeTime(state.DataType(), line.Value, currentTime))
 			}
 		}
 		prevTime = currentTime
@@ -266,15 +266,15 @@ func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) p
 }
 
 func buildStateParsingRunner(state *setlib.AssetState, date string) *gorunner.Runner {
-	runner := gorunner.NewRunner(STATE_PARSING_KEY + "-" + state.SetAndAssetID() + "-" + date)
+	runner := gorunner.NewRunner(STATE_PARSING_KEY + "-" + string(state.Address()) + "-" + date)
 
 	addTimeframe(runner, pcommon.Env.MIN_TIME_FRAME)
 	addDate(runner, date)
-	addAssetAndSetIDs(runner, []string{state.SetAndAssetID()})
+	addAssetAddresses(runner, []pcommon.AssetAddress{state.Address()})
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
-			if !haveSameFullIDs(r, runner) {
+			if !haveSameAddresses(r, runner) {
 				continue
 			}
 

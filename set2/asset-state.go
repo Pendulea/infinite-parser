@@ -2,132 +2,129 @@ package set2
 
 import (
 	"fmt"
-	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	log "github.com/sirupsen/logrus"
 )
 
 type AssetState struct {
-	key                        [2]byte
-	id                         pcommon.AssetType
-	t                          pcommon.DataType
+	config                     pcommon.AssetStateConfig
+	settings                   pcommon.AssetSettings
 	consistencyMaxLookbackDays int
-	precision                  int8             //precision of the data
-	readList                   *assetReadlist   //timeframe list and last read
-	start                      pcommon.TimeUnit //data start time
+	readList                   *assetReadlist //timeframe list and last read
 
-	SetRef *Set //reference to the set
+	SetRef          *Set //reference to the set
+	key             *[2]byte
+	DependenciesRef []*AssetState
 }
 
-func (state *AssetState) SetAndAssetID() string {
-	return state.SetRef.ID() + ":" + string(state.ID())
+func (state *AssetState) Type() pcommon.AssetType {
+	return state.config.ID
+}
+
+func (state *AssetState) DataHistoryTime0() pcommon.TimeUnit {
+	t, err := pcommon.Format.StrDateToDate(state.settings.MinDataDate)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return pcommon.NewTimeUnitFromTime(t)
+}
+
+func (state *AssetState) Address() pcommon.AssetAddress {
+	return state.ParsedAddress().BuildAddress()
+}
+
+func (state *AssetState) ParsedAddress() pcommon.AssetAddressParsed {
+	return state.settings.Address.AddSetID(state.SetRef.Settings.ID)
 }
 
 func (state *AssetState) Precision() int8 {
-	return state.precision
+	return state.settings.Decimals
 }
 
 func (state *AssetState) Key() [2]byte {
-	return state.key
+	if state.key == nil {
+		log.Fatal("Key not set")
+	}
+	return *state.key
 }
 
-func (state *AssetState) ID() pcommon.AssetType {
-	return state.id
+func (state *AssetState) DataType() pcommon.DataType {
+	return state.config.DataType
 }
 
-func (state *AssetState) Type() pcommon.DataType {
-	return state.t
-}
-
-func (state *AssetState) DataT0() pcommon.TimeUnit {
-	return state.start
-}
-
-func (state *AssetState) JSON(timeframe time.Duration) (*pcommon.AssetJSON, error) {
-	t, err := state.GetLastConsistencyTime(timeframe)
+func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
+	t0 := state.DataHistoryTime0()
+	consistencies := []pcommon.Consistency{{
+		Range:     [2]pcommon.TimeUnit{t0, t0},
+		Timeframe: pcommon.Env.MIN_TIME_FRAME.Milliseconds(),
+	}}
+	tmax, err := state.GetLastConsistencyTime(pcommon.Env.MIN_TIME_FRAME)
 	if err != nil {
 		return nil, err
 	}
-	consistency := [2]pcommon.TimeUnit{state.start, state.start}
-	if t > state.start {
-		consistency[1] = t
+	if tmax > t0 {
+		consistencies[0].Range[1] = tmax
 	}
 
-	ret := pcommon.AssetJSON{
-		ID:                         state.id,
-		Precision:                  state.precision,
-		Type:                       state.t,
-		ConsistencyMaxLookbackDays: state.consistencyMaxLookbackDays,
-		ConsistencyRange:           consistency,
-		Timeframe:                  timeframe.Milliseconds(),
-		SubAssets:                  nil,
-	}
-	if (state.IsQuantity() || state.IsUnit()) && timeframe == pcommon.Env.MIN_TIME_FRAME {
-		ret.SubAssets = make([]pcommon.AssetJSON, 0)
+	if !state.ParsedAddress().HasDependencies() && (state.IsQuantity() || state.IsUnit()) {
 		for _, v := range *state.readList.readList {
-			j, err := state.JSON(v.Timeframe)
+			consistency := pcommon.Consistency{
+				Range:     [2]pcommon.TimeUnit{t0, t0},
+				Timeframe: v.Timeframe.Milliseconds(),
+			}
+			tmax, err := state.GetLastConsistencyTime(v.Timeframe)
 			if err != nil {
 				return nil, err
 			}
-			ret.SubAssets = append(ret.SubAssets, *j)
+			if tmax > t0 {
+				consistency.Range[1] = tmax
+			}
+			consistencies = append(consistencies, consistency)
 		}
 	}
 
-	return &ret, nil
+	return &pcommon.AssetJSON{
+		AddressString:              state.Address(),
+		Address:                    state.ParsedAddress(),
+		ConsistencyMaxLookbackDays: state.consistencyMaxLookbackDays,
+		Consistencies:              consistencies,
+		DataType:                   state.DataType(),
+		Decimals:                   state.Precision(),
+		MinDataDate:                state.settings.MinDataDate,
+	}, nil
 }
 
-func (state *AssetState) Copy(SetRef *Set, minDataDate string, id pcommon.AssetType, precision int8) *AssetState {
-	t, err := pcommon.Format.StrDateToDate(minDataDate)
-	if err != nil {
-		log.Fatal(err)
-	}
-	start := pcommon.NewTimeUnitFromTime(t)
-
-	newState := AssetState{
-		key:                        state.key,
-		t:                          state.t,
-		start:                      start,
-		id:                         id,
-		consistencyMaxLookbackDays: state.consistencyMaxLookbackDays,
+func NewAssetState(config pcommon.AssetStateConfig, settings pcommon.AssetSettings, SetRef *Set, key *[2]byte) *AssetState {
+	state := AssetState{
+		config:                     config,
+		settings:                   settings,
+		consistencyMaxLookbackDays: MAX_CONSISTENCY_DAYS,
 		SetRef:                     SetRef,
 		readList:                   newReadlistSet(),
-		precision:                  precision,
+		key:                        key,
 	}
 
-	if err := newState.pullReadList(); err != nil {
+	if err := state.pullReadList(); err != nil {
 		log.Fatal(err)
 	}
-	return &newState
-}
-
-func newUninitalizedAssetState(key [2]byte, dataType pcommon.DataType, consistencyMaxLookbackDays int) AssetState {
-	return AssetState{
-		key:                        key,
-		t:                          dataType,
-		SetRef:                     nil,
-		readList:                   newReadlistSet(),
-		precision:                  -1,
-		consistencyMaxLookbackDays: consistencyMaxLookbackDays,
-		start:                      0,
-		id:                         "",
-	}
+	return &state
 }
 
 func (state *AssetState) IsUnit() bool {
-	return state.t == pcommon.UNIT
+	return pcommon.DEFAULT_ASSETS[state.settings.Address.AssetType].DataType == pcommon.UNIT
 }
 
 func (state *AssetState) IsQuantity() bool {
-	return state.t == pcommon.QUANTITY
+	return pcommon.DEFAULT_ASSETS[state.settings.Address.AssetType].DataType == pcommon.QUANTITY
 }
 
 func (state *AssetState) IsPoint() bool {
-	return state.t == pcommon.POINT
+	return pcommon.DEFAULT_ASSETS[state.settings.Address.AssetType].DataType == pcommon.POINT
 }
 
 func (state *AssetState) PrintReadList() {
-	fmt.Printf("Readlist: %s of %s\n", state.ID(), state.SetRef.ID())
+	fmt.Printf("Readlist: %s of %s\n", state.Address())
 	for _, v := range *state.readList.readList {
 		fmt.Println(v.Timeframe, v.Time.ToTime())
 	}

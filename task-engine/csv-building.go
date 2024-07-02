@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	setlib "pendulev2/set2"
 	"pendulev2/util"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,16 +30,11 @@ const (
 	STAT_VALUE_LINE_COUNT = "LINE_COUNT"
 )
 
-type CSVAssetOrder struct {
-	Asset   *setlib.AssetState
-	Columns pcommon.CSVCheckListRequirement
-}
-
 type CSVBuildingOrder struct {
 	From      pcommon.TimeUnit
 	To        pcommon.TimeUnit
 	Timeframe time.Duration
-	Orders    []CSVAssetOrder
+	Orders    []setlib.CSVAssetOrder
 }
 
 func (cbo *CSVBuildingOrder) ID() string {
@@ -51,10 +45,10 @@ func (cbo *CSVBuildingOrder) ID() string {
 
 	id2 := []string{}
 	for _, order := range cbo.Orders {
-		id2 = append(id2, order.Asset.SetAndAssetID()+":"+strings.Join(util.ColumnNamesToStrings(order.Columns.Columns()), ","))
+		id2 = append(id2, string(order.Asset.Address())+"+"+strings.Join(util.ColumnNamesToStrings(order.Columns.Columns()), ","))
 	}
 
-	return id + strings.Join(id2, "|")
+	return id + strings.Join(id2, "&")
 }
 
 func CSVBuildingOrderIDToStatus(id string, file pcommon.FileInfo) pcommon.CSVStatus {
@@ -90,7 +84,7 @@ type CSVBuildingOrderPacked struct {
 	From      int64      `json:"from"`      //In unix seconds `json:"from"`
 	To        int64      `json:"to"`        //In unix seconds
 	Timeframe int64      `json:"timeframe"` //In milliseconds
-	Orders    [][]string `json:"orders"`    // [setID, assetID, columns...]
+	Orders    [][]string `json:"orders"`    // [Address, columns...]
 }
 
 func parsePackedOrder(sets setlib.WorkingSets, order CSVBuildingOrderPacked) (*CSVBuildingOrder, error) {
@@ -107,58 +101,20 @@ func parsePackedOrder(sets setlib.WorkingSets, order CSVBuildingOrderPacked) (*C
 		return nil, err
 	}
 
-	orders := []CSVAssetOrder{}
-	usedSets := make(map[string]*setlib.Set)
+	orders, err := setlib.ParseArrayOrder(sets, timeframe, order.Orders)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, orderPacked := range order.Orders {
-		if len := len(orderPacked); len < 3 {
-			return nil, fmt.Errorf("order has invalid length %d", len)
-		}
-		setID := orderPacked[0]
-		assetID := orderPacked[1]
-		columns := orderPacked[2:]
-
-		if usedSets[setID] == nil {
-			set := sets.Find(setID)
-			if set == nil {
-				return nil, fmt.Errorf("set %s not found", setID)
-			}
-			usedSets[setID] = set
-		}
-
-		asset := usedSets[setID].Assets[pcommon.AssetType(assetID)]
-		if asset == nil {
-			return nil, fmt.Errorf("asset %s not found in set %s", assetID, setID)
-		}
-		if !asset.IsTimeframeSupported(timeframe) {
-			return nil, fmt.Errorf("asset %s does not support timeframe %s", assetID, timeframe)
-		}
-		lct, err := asset.GetLastConsistencyTime(timeframe)
+	for _, order := range orders {
+		lct, err := order.Asset.GetLastConsistencyTime(timeframe)
 		if err != nil {
 			return nil, err
 		}
 		if lct < to {
-			return nil, fmt.Errorf("asset %s is not consistent until %s", assetID, lct)
+			return nil, fmt.Errorf("asset %s is not consistent until %s", order.Asset.Address(), lct)
 		}
-		requirements := pcommon.CSVCheckListRequirement{}
-		for _, column := range columns {
-			if lo.IndexOf[pcommon.ColumnName](asset.Type().Columns(), pcommon.ColumnName(column)) == -1 {
-				return nil, fmt.Errorf("asset %s does not have column %s", assetID, column)
-			}
-			requirements[pcommon.ColumnName(column)] = true
-		}
-
-		orders = append(orders, CSVAssetOrder{asset, requirements})
 	}
-
-	orders = lo.UniqBy(orders, func(order CSVAssetOrder) string {
-		return order.Asset.SetAndAssetID()
-	})
-
-	//order asc by theirs asset ID and state id
-	sort.Slice(orders, func(i, j int) bool {
-		return orders[i].Asset.SetRef.ID() < orders[j].Asset.SetRef.ID() || (orders[i].Asset.SetRef.ID() == orders[j].Asset.SetRef.ID() && orders[i].Asset.ID() < orders[j].Asset.ID())
-	})
 
 	return &CSVBuildingOrder{from, to, timeframe, orders}, nil
 }
@@ -190,8 +146,8 @@ func (parameters *CSVBuildingOrder) Status(runner *gorunner.Runner) pcommon.CSVS
 	status.From = parameters.From
 	status.To = parameters.To
 	status.TimeframeLabel, _ = pcommon.Format.TimeFrameToLabel(parameters.Timeframe)
-	status.Assets = lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) []string {
-		list := []string{order.Asset.SetRef.ID(), string(order.Asset.ID())}
+	status.Assets = lo.Map(parameters.Orders, func(order setlib.CSVAssetOrder, idx int) []string {
+		list := []string{string(order.Asset.Address())}
 		list = append(list, util.ColumnNamesToStrings(order.Columns.Columns())...)
 		return list
 	})
@@ -247,9 +203,11 @@ func (parameters *CSVBuildingOrder) buildQuerySummaryFile(runner *gorunner.Runne
 
 	lineWritten := runner.StatValue(STAT_VALUE_LINE_COUNT)
 
-	setIDs := lo.Uniq(lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) string {
+	setIDs := lo.Uniq(lo.Map(parameters.Orders, func(order setlib.CSVAssetOrder, idx int) string {
 		return order.Asset.SetRef.ID()
 	}))
+
+	countSetIDs := len(setIDs)
 
 	content := fmt.Sprintf("Timeframe: %s\nBetween: %s 00:00:00 and %s\n\n", status.TimeframeLabel,
 		parameters.From.ToTime().UTC().Format("2006-01-02"),
@@ -259,7 +217,11 @@ func (parameters *CSVBuildingOrder) buildQuerySummaryFile(runner *gorunner.Runne
 		listFullColumns := []string{}
 		for _, order := range parameters.Orders {
 			if order.Asset.SetRef.ID() == setID {
-				listFullColumns = append(listFullColumns, "- "+string(order.Asset.ID())+" : "+strings.Join(util.ColumnNamesToStrings(order.Columns.Columns()), ", "))
+				id, err := order.Asset.ParsedAddress().BuildCSVColumnName(countSetIDs > 1)
+				if err != nil {
+					return err
+				}
+				listFullColumns = append(listFullColumns, "- "+id+" : "+strings.Join(util.ColumnNamesToStrings(order.Columns.Columns()), ", "))
 			}
 		}
 		content += fmt.Sprintf("%s:\n%s\n", setID, strings.Join(listFullColumns, "\n"))
@@ -275,7 +237,10 @@ func buildCSV(runner *gorunner.Runner) error {
 	runner.SetSize().Initial(parameters.From.Int())
 	runner.SetSize().Max(parameters.To.Int())
 
-	header := parameters.buildCSVHeader()
+	header, err := parameters.buildCSVHeader()
+	if err != nil {
+		return err
+	}
 	froms := parameters.buildOrderFromTimes()
 
 	go parameters.monitorProgress(runner)
@@ -336,21 +301,34 @@ func (parameters *CSVBuildingOrder) zipCSVArchive() error {
 	return pcommon.File.ZipDirectory(folderPath, folderPath+".zip")
 }
 
-func (parameters *CSVBuildingOrder) buildCSVHeader() []string {
-	headerDouble := lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) []string {
-		return order.Asset.Type().Header(order.Asset.SetAndAssetID(), order.Columns)
+func (parameters *CSVBuildingOrder) buildCSVHeader() ([]string, error) {
+	countSetIDs := len(lo.UniqBy(parameters.Orders, func(order setlib.CSVAssetOrder) string {
+		return order.Asset.SetRef.ID()
+	}))
+
+	var eRR error = nil
+	headerDouble := lo.Map(parameters.Orders, func(order setlib.CSVAssetOrder, idx int) []string {
+		prefix, err := order.Asset.ParsedAddress().BuildCSVColumnName(countSetIDs > 1)
+		if err != nil {
+			eRR = err
+			return nil
+		}
+		return order.Asset.DataType().Header(prefix, order.Columns)
 	})
+	if eRR != nil {
+		return nil, eRR
+	}
 	var header []string
 	for _, h := range headerDouble {
 		header = append(header, h...)
 	}
-	return header
+	return header, nil
 }
 
 func (parameters *CSVBuildingOrder) buildOrderFromTimes() []pcommon.TimeUnit {
 	froms := make([]pcommon.TimeUnit, len(parameters.Orders))
 	for i, order := range parameters.Orders {
-		minFrom := order.Asset.DataT0()
+		minFrom := order.Asset.DataHistoryTime0()
 		froms[i] = pcommon.TimeUnit(math.Max(float64(minFrom), float64(parameters.From)))
 	}
 	return froms
@@ -381,10 +359,10 @@ func closeCSVFile(writer *csv.Writer, file *os.File) error {
 	return file.Close()
 }
 
-func (parameters *CSVBuildingOrder) fetchOrderData(froms *[]pcommon.TimeUnit) (map[string]pcommon.DataList, error) {
+func (parameters *CSVBuildingOrder) fetchOrderData(froms *[]pcommon.TimeUnit) (map[pcommon.AssetAddress]pcommon.DataList, error) {
 	wg := sync.WaitGroup{}
 	mu := sync.Mutex{}
-	listData := make(map[string]pcommon.DataList)
+	listData := make(map[pcommon.AssetAddress]pcommon.DataList)
 
 	var stopErr error
 	muStopErr := sync.RWMutex{}
@@ -440,7 +418,7 @@ func (parameters *CSVBuildingOrder) fetchOrderData(froms *[]pcommon.TimeUnit) (m
 			}
 
 			mu.Lock()
-			listData[state.SetAndAssetID()] = data
+			listData[state.Address()] = data
 			mu.Unlock()
 		}(i, order.Asset)
 	}
@@ -452,7 +430,7 @@ func (parameters *CSVBuildingOrder) fetchOrderData(froms *[]pcommon.TimeUnit) (m
 	return listData, nil
 }
 
-func (parameters *CSVBuildingOrder) collectLines(listData *map[string]pcommon.DataList) []string {
+func (parameters *CSVBuildingOrder) collectLines(listData *map[pcommon.AssetAddress]pcommon.DataList) []string {
 	var lines []string
 
 	for {
@@ -468,28 +446,28 @@ func (parameters *CSVBuildingOrder) collectLines(listData *map[string]pcommon.Da
 	return lines
 }
 
-func (parameters *CSVBuildingOrder) findMinTimeState(listData *map[string]pcommon.DataList) (pcommon.TimeUnit, string) {
+func (parameters *CSVBuildingOrder) findMinTimeState(listData *map[pcommon.AssetAddress]pcommon.DataList) (pcommon.TimeUnit, pcommon.AssetAddress) {
 	minTime := pcommon.NewTimeUnitFromTime(time.Now())
-	var minTimeState string
+	var minTimeState pcommon.AssetAddress
 
 	for _, order := range parameters.Orders {
-		list := (*listData)[order.Asset.SetAndAssetID()]
+		list := (*listData)[order.Asset.Address()]
 		if list == nil || list.Len() == 0 {
 			continue
 		}
 		first := list.First()
 		if first.GetTime() < minTime {
-			minTime, minTimeState = first.GetTime(), order.Asset.SetAndAssetID()
+			minTime, minTimeState = first.GetTime(), order.Asset.Address()
 		}
 	}
 	return minTime, minTimeState
 }
 
-func (parameters *CSVBuildingOrder) createCSVLine(listData *map[string]pcommon.DataList, minTime pcommon.TimeUnit) []string {
+func (parameters *CSVBuildingOrder) createCSVLine(listData *map[pcommon.AssetAddress]pcommon.DataList, minTime pcommon.TimeUnit) []string {
 	var line []string
 
 	for _, order := range parameters.Orders {
-		assetStateID := order.Asset.SetAndAssetID()
+		assetStateID := order.Asset.Address()
 		list := (*listData)[assetStateID]
 		if list == nil || list.Len() == 0 {
 			continue
@@ -502,7 +480,7 @@ func (parameters *CSVBuildingOrder) createCSVLine(listData *map[string]pcommon.D
 		if first.GetTime() == minTime {
 			assetLine = list.First().CSVLine(precision, columns)
 		} else {
-			assetLine = pcommon.NewTypeTime(order.Asset.Type(), 0, 0).CSVLine(precision, columns)
+			assetLine = pcommon.NewTypeTime(order.Asset.DataType(), 0, 0).CSVLine(precision, columns)
 		}
 
 		line = append(line, assetLine...)
@@ -548,18 +526,18 @@ func buildCSVBuildingRunner(parameters *CSVBuildingOrder) *gorunner.Runner {
 	buildID := CSV_BUILDING_KEY + "-" + parameters.ID()
 	runner := gorunner.NewRunner(buildID)
 
-	fullIDs := lo.Map(parameters.Orders, func(order CSVAssetOrder, idx int) string {
-		return order.Asset.SetAndAssetID()
+	addresses := lo.Map(parameters.Orders, func(order setlib.CSVAssetOrder, idx int) pcommon.AssetAddress {
+		return order.Asset.Address()
 	})
 
-	addAssetAndSetIDs(runner, fullIDs)
+	addAssetAddresses(runner, addresses)
 	addTimeframe(runner, parameters.Timeframe)
 	runner.Args[ARG_VALUE_PARAMETERS] = parameters
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {
 
-			if !haveSameFullIDs(r, runner) {
+			if !haveSameAddresses(r, runner) {
 				continue
 			}
 

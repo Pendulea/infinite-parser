@@ -13,7 +13,7 @@ import (
 
 const (
 	ARG_VALUE_DATE      = "date"
-	ARG_VALUE_FULL_IDS  = "full_ids"
+	ARG_VALUE_ADDRESSES = "addresses"
 	ARG_VALUE_TIMEFRAME = "timeframe"
 )
 
@@ -25,8 +25,8 @@ func addTimeframe(r *gorunner.Runner, timeframe time.Duration) {
 	r.Args[ARG_VALUE_TIMEFRAME] = timeframe
 }
 
-func addAssetAndSetIDs(r *gorunner.Runner, fullIDs []string) {
-	r.Args[ARG_VALUE_FULL_IDS] = strings.Join(fullIDs, ",")
+func addAssetAddresses(r *gorunner.Runner, addresses []pcommon.AssetAddress) {
+	r.Args[ARG_VALUE_ADDRESSES] = addresses
 }
 
 func getDate(r *gorunner.Runner) string {
@@ -45,23 +45,22 @@ func getTimeframe(r *gorunner.Runner) time.Duration {
 	return timeframe
 }
 
-func haveSameFullIDs(r1, r2 *gorunner.Runner) bool {
-	setID1, ok := gorunner.GetArg[string](r1.Args, ARG_VALUE_FULL_IDS)
-	setID2, ok2 := gorunner.GetArg[string](r2.Args, ARG_VALUE_FULL_IDS)
+func haveSameAddresses(r1, r2 *gorunner.Runner) bool {
+	addresses1, ok := gorunner.GetArg[[]pcommon.AssetAddress](r1.Args, ARG_VALUE_ADDRESSES)
+	addresses2, ok2 := gorunner.GetArg[[]pcommon.AssetAddress](r2.Args, ARG_VALUE_ADDRESSES)
 
 	if !ok || !ok2 {
 		return false
 	}
 
-	setID1Array := strings.Split(setID1, ",")
-	setID2Array := strings.Split(setID2, ",")
-	for _, s1 := range setID1Array {
-		for _, s2 := range setID2Array {
-			if s1 == s2 {
+	for _, address1 := range addresses1 {
+		for _, address2 := range addresses2 {
+			if address1 == address2 {
 				return true
 			}
 		}
 	}
+
 	return false
 }
 

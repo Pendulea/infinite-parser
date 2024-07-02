@@ -41,7 +41,7 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 		defer iter.Close()
 	}
 
-	ret := pcommon.NewTypeTimeArray(state.Type())
+	ret := pcommon.NewTypeTimeArray(state.DataType())
 
 	// Iterate over the keys and retrieve values within the range
 	for iter.Seek(startKey); iter.Valid(); iter.Next() {
@@ -60,7 +60,7 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 			return nil, err
 		}
 
-		unraw, err := pcommon.ParseTypeData(state.Type(), value, dataTime)
+		unraw, err := pcommon.ParseTypeData(state.DataType(), value, dataTime)
 		if err != nil {
 			return nil, err
 		}
@@ -83,7 +83,7 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 	offsetUnixTime := settings.OffsetUnixTime
 	startByEnd := settings.StartByEnd
 
-	ret := pcommon.NewTypeTimeArray(state.Type())
+	ret := pcommon.NewTypeTimeArray(state.DataType())
 
 	if limit > 1 && !state.IsTimeframeSupported(timeFrame) {
 		return nil, nil
@@ -100,7 +100,7 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 
 	var limitTime pcommon.TimeUnit
 	if startByEnd {
-		limitTime = state.DataT0()
+		limitTime = state.DataHistoryTime0()
 	} else {
 		lastData, rowTime, err := state.GetLatestData(timeFrame)
 		if err != nil || lastData == nil {
@@ -143,7 +143,7 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 			return nil, err
 		}
 
-		unraw, err := pcommon.ParseTypeData(state.Type(), value, rowTime)
+		unraw, err := pcommon.ParseTypeData(state.DataType(), value, rowTime)
 		if err != nil {
 			return nil, err
 		}

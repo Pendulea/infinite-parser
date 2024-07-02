@@ -23,8 +23,7 @@ func (state *AssetState) ShouldSync() (*string, error) {
 	}
 
 	if t == 0 {
-		s := pcommon.Format.FormatDateStr(state.DataT0().ToTime())
-		return &s, nil
+		return &state.settings.MinDataDate, nil
 	}
 
 	offset := time.Duration(state.consistencyMaxLookbackDays-1) * 24 * time.Hour
