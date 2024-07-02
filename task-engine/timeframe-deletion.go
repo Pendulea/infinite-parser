@@ -24,6 +24,8 @@ func printTimeframeDeletionStatus(runner *gorunner.Runner, state *setlib.AssetSt
 	label, _ := pcommon.Format.TimeFrameToLabel(getTimeframe(runner))
 	TOTAL_DELETED_TICKS := runner.StatValue(STAT_VALUE_DATA_COUNT)
 
+	id, _ := state.ParsedAddress().BuildCSVColumnName(true)
+
 	if runner.IsRunning() {
 		if runner.CountSteps() == 0 {
 			date := pcommon.NewTimeUnit(runner.Size().Current()).ToTime()
@@ -34,13 +36,13 @@ func printTimeframeDeletionStatus(runner *gorunner.Runner, state *setlib.AssetSt
 				"deleted":  pcommon.Format.LargeNumberToShortString(TOTAL_DELETED_TICKS),
 				"date":     pcommon.Format.FormatDateStr(date),
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Deleted %s rows on timeframe: %s (set: %s)", state.Address(), label, state.SetRef.ID()))
+			}).Info(fmt.Sprintf("Deleted %s rows on timeframe: %s", id, label))
 
 		} else if runner.CountSteps() == 1 {
 			log.WithFields(log.Fields{
 				"deleted": pcommon.Format.LargeNumberToShortString(TOTAL_DELETED_TICKS),
 				"done":    "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully deleted %s rows on timeframe: %s (set: %s)", state.Address(), label, state.SetRef.ID()))
+			}).Info(fmt.Sprintf("Successfully deleted %s rows on timeframe: %s", id, label))
 		}
 	}
 }

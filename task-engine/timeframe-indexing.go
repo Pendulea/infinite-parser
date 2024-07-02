@@ -24,6 +24,8 @@ func buildTimeFrameIndexingKey(assetAddress pcommon.AssetAddress, timeframe time
 func printTimeframeIndexingStatus(runner *gorunner.Runner, state *setlib.AssetState) {
 	label, _ := pcommon.Format.TimeFrameToLabel(getTimeframe(runner))
 
+	id, _ := state.ParsedAddress().BuildCSVColumnName(true)
+
 	PARSED_ROWS_COUNT := runner.StatValue(STAT_VALUE_DATA_COUNT)
 	if runner.IsRunning() {
 		if runner.CountSteps() == 0 {
@@ -35,13 +37,13 @@ func printTimeframeIndexingStatus(runner *gorunner.Runner, state *setlib.AssetSt
 				"rows":     pcommon.Format.LargeNumberToShortString(PARSED_ROWS_COUNT),
 				"date":     pcommon.Format.FormatDateStr(date),
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Indexing new %s rows on timeframe: %s (set: %s)", state.Address(), label, state.SetRef.ID()))
+			}).Info(fmt.Sprintf("Indexing new %s rows on timeframe: %s", id, label))
 
 		} else if runner.CountSteps() == 1 {
 			log.WithFields(log.Fields{
 				"rows": pcommon.Format.LargeNumberToShortString(PARSED_ROWS_COUNT),
 				"done": "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully stored %s rows on timeframe: %s (set: %s)", state.Address(), label, state.SetRef.ID()))
+			}).Info(fmt.Sprintf("Successfully stored %s rows on timeframe: %s ", id, label))
 		}
 	}
 }

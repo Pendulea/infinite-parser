@@ -87,6 +87,8 @@ github.com/pendulea/pendule-common v0.9.4 h1:5QwxoydIO+yGN16sUiGr80GEQWqdwJynhAm
 github.com/pendulea/pendule-common v0.9.4/go.mod h1:Z18HWO0A0Fs3uwR9GHF7rv28zNQLIdlbt5JYP8vX8is=
 github.com/pendulea/pendule-common v0.9.5 h1:kp8zX5767Mjvt8qPxkG8byG6Pgc0ynvmIJiohYA/gts=
 github.com/pendulea/pendule-common v0.9.5/go.mod h1:Z18HWO0A0Fs3uwR9GHF7rv28zNQLIdlbt5JYP8vX8is=
+github.com/pendulea/pendule-common v0.9.7 h1:kbE/sBehQYoUN76j06P6xfot5QA6JyLTYgeqGyR5nPs=
+github.com/pendulea/pendule-common v0.9.7/go.mod h1:Z18HWO0A0Fs3uwR9GHF7rv28zNQLIdlbt5JYP8vX8is=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

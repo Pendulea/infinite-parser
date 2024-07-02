@@ -24,20 +24,21 @@ const (
 func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) {
 	date := getDate(runner)
 
+	id, _ := asset.ParsedAddress().BuildCSVColumnName(true)
 	if runner.IsRunning() {
 		if runner.CountSteps() == 0 {
 			archiveSize := runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)
 
 			log.WithFields(log.Fields{
 				"size": pcommon.Format.LargeBytesToShortString(archiveSize),
-			}).Info(fmt.Sprintf("Unzipping %s %s archive (%s)", asset.SetRef.ID(), asset.Address(), date))
+			}).Info(fmt.Sprintf("Unzipping %s archive (%s)", id, date))
 			return
 		} else if runner.CountSteps() == 1 {
 			archiveSize := runner.StatValue(STAT_VALUE_ARCHIVE_SIZE)
 
 			log.WithFields(log.Fields{
 				"size": pcommon.Format.LargeBytesToShortString(int64(float64(archiveSize) * 5.133)),
-			}).Info(fmt.Sprintf("Parsing %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
+			}).Info(fmt.Sprintf("Parsing %s (%s)", id, date))
 
 		} else if runner.CountSteps() == 2 {
 			tradeParsed := pcommon.Format.LargeNumberToShortString(runner.Size().Current()) + "/" + pcommon.Format.LargeNumberToShortString(runner.Size().Max())
@@ -47,13 +48,13 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 				"speed":    pcommon.Format.LargeNumberToShortString(int64(runner.SizePerMillisecond()*1000)) + " line/s",
 				"total":    tradeParsed,
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
-			}).Info(fmt.Sprintf("Building %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
+			}).Info(fmt.Sprintf("Building %s (%s)", id, date))
 		} else if runner.CountSteps() == 3 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
 			log.WithFields(log.Fields{
 				"aggregated": pcommon.Format.LargeNumberToShortString(totalRows),
 				"parsed":     pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
-			}).Info(fmt.Sprintf("Storing %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
+			}).Info(fmt.Sprintf("Storing %s (%s)", id, date))
 
 		} else if runner.CountSteps() >= 4 {
 			totalRows := runner.StatValue(STAT_VALUE_DATA_COUNT)
@@ -62,7 +63,7 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 				"aggregated": pcommon.Format.LargeNumberToShortString(totalRows),
 				"parsed":     pcommon.Format.LargeNumberToShortString(runner.Size().Max()),
 				"done":       "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
-			}).Info(fmt.Sprintf("Successfully stored %s %s (%s)", asset.SetRef.ID(), asset.Address(), date))
+			}).Info(fmt.Sprintf("Successfully stored %s (%s)", id, date))
 		}
 	}
 }

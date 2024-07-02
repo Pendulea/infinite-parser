@@ -3,6 +3,7 @@ package set2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -22,10 +23,16 @@ type Set struct {
 }
 
 func (set *Set) JSON() (*pcommon.SetJSON, error) {
+	t, err := set.Settings.GetSetType()
+	if err != nil {
+		return nil, err
+	}
+
 	json := pcommon.SetJSON{
 		Settings: set.Settings,
 		Size:     set.Size(),
 		Assets:   make([]pcommon.AssetJSON, 0),
+		Type:     t,
 	}
 
 	for _, asset := range set.Assets {
@@ -81,6 +88,7 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 		db:       db,
 		Settings: settings,
 		cancels:  make([]context.CancelFunc, 0),
+		Assets:   make(map[pcommon.AssetAddress]*AssetState),
 	}
 
 	for _, assetSettings := range settings.Assets {
@@ -128,25 +136,26 @@ func (s *Set) AddCancelFunc(cancel context.CancelFunc) {
 }
 
 func (set *Set) AddAsset(newAsset pcommon.AssetSettings) error {
-
 	if err := newAsset.IsValid(set.Settings); err != nil {
 		return err
 	}
 
-	setTypeBefore, err := set.Settings.GetSetType()
-	if err != nil {
-		return err
-	}
+	if set.initialized {
+		setTypeBefore, err := set.Settings.GetSetType()
+		if err != nil {
+			return err
+		}
 
-	settingsCopy := set.Settings.Copy()
-	settingsCopy.Assets = append(settingsCopy.Assets, newAsset)
+		settingsCopy := set.Settings.Copy()
+		settingsCopy.Assets = append(settingsCopy.Assets, newAsset)
 
-	setTypeAfter, err := settingsCopy.GetSetType()
-	if err != nil {
-		return err
-	}
-	if setTypeAfter != setTypeBefore {
-		return errors.New("asset type is not supported by set")
+		setTypeAfter, err := settingsCopy.GetSetType()
+		if err != nil {
+			return err
+		}
+		if setTypeAfter != setTypeBefore {
+			return errors.New("asset type is not supported by set")
+		}
 	}
 
 	address := newAsset.Address.AddSetID(set.Settings.ID).BuildAddress()
@@ -164,6 +173,7 @@ func (set *Set) AddAsset(newAsset pcommon.AssetSettings) error {
 		}
 	}
 	assetConfig := pcommon.DEFAULT_ASSETS[newAsset.Address.AssetType]
+	fmt.Println(address, *k, assetConfig.DataType)
 	set.Assets[address] = NewAssetState(assetConfig, newAsset, set, k)
 	return nil
 }
@@ -214,7 +224,7 @@ func (s *Set) newAddressKey() (*[2]byte, error) {
 	item, err := txn.Get(k)
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
-			return nil, nil
+			return &[2]byte{0, 0}, nil
 		}
 	}
 	var key [2]byte
