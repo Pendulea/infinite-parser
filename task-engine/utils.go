@@ -29,6 +29,26 @@ func addAssetAddresses(r *gorunner.Runner, addresses []pcommon.AssetAddress) {
 	r.Args[ARG_VALUE_ADDRESSES] = addresses
 }
 
+func addCSVParameters(r *gorunner.Runner, parameters *CSVBuildingOrder) {
+	r.Args[ARG_VALUE_PARAMETERS] = parameters
+}
+
+func getCSVParameters(r *gorunner.Runner) *CSVBuildingOrder {
+	parameters, ok := gorunner.GetArg[*CSVBuildingOrder](r.Args, ARG_VALUE_PARAMETERS)
+	if !ok {
+		log.Fatal("Parameters not found in runner")
+	}
+	return parameters
+}
+
+func getAddresses(r *gorunner.Runner) []pcommon.AssetAddress {
+	addresses, ok := gorunner.GetArg[[]pcommon.AssetAddress](r.Args, ARG_VALUE_ADDRESSES)
+	if !ok {
+		log.Fatal("Addresses not found in runner")
+	}
+	return addresses
+}
+
 func getDate(r *gorunner.Runner) string {
 	date, ok := gorunner.GetArg[string](r.Args, ARG_VALUE_DATE)
 	if !ok {
@@ -85,7 +105,7 @@ func GetCSVList() ([]pcommon.CSVStatus, error) {
 
 	for _, runner := range Engine.RunningRunners() {
 		if strings.Contains(runner.ID, CSV_BUILDING_KEY) {
-			parameters := getParameters(runner)
+			parameters := getCSVParameters(runner)
 			status := parameters.Status(runner)
 			used[status.BuildID] = true
 			statuses = append(statuses, status)
@@ -105,40 +125,43 @@ func GetCSVList() ([]pcommon.CSVStatus, error) {
 	return statuses, nil
 }
 
-func HTMLify(r *gorunner.Runner) pcommon.StatusHTML {
+func HTMLify(r *gorunner.Runner) *pcommon.StatusHTML {
 	html := pcommon.StatusHTML{}
 	// setID, _ := gorunner.GetArg[string](r.Args, ARG_VALUE_SET_ID)
-	// html.SetID = setID
 
-	// if strings.Contains(r.ID, TIMEFRAME_INDEXING_KEY) {
-	// 	timeframe, _ := gorunner.GetArg[time.Duration](r.Args, ARG_VALUE_TIMEFRAME)
-	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+	if strings.Contains(r.ID, TIMEFRAME_INDEXING_KEY) {
+		timeframe := getTimeframe(r)
+		label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+		addr := getAddresses(r)[0]
+		p, _ := addr.Parse()
 
-	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
 
-	// 	html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span>" + " candles " + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
-	// }
-	// if strings.Contains(r.ID, INDICATOR_INDEXING_RUNNER) {
-	// 	indicator, _ := gorunner.GetArg[indicator.Indicator](r.Args, ARG_VALUE_INDICATOR)
-	// 	timeframe, _ := gorunner.GetArg[time.Duration](r.Args, ARG_VALUE_TIMEFRAME)
-	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span>" + p.PrettyString() + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+		html.AssetID = p.PrettyString()
+	}
+	if strings.Contains(r.ID, TIMEFRAME_DELETION_KEY) {
+		timeframe := getTimeframe(r)
+		label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+		addr := getAddresses(r)[0]
+		p, _ := addr.Parse()
 
-	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
 
-	// 	html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + string(indicator) + "</span>" + " on " + "<span style=\"font-weight: 700; color: green;\">" + label + "</span>" + " candles " + "(<span style=\"font-weight: 700\">" + ETAString + "</span>)" + "</span>"
-	// }
-	// if strings.Contains(r.ID, CSV_BUILDING_KEY) {
-	// 	timeframe, _ := gorunner.GetArg[time.Duration](r.Args, ARG_VALUE_TIMEFRAME)
-	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+		html.HTML = "<span>Deleting " + "<span style=\"font-weight: 700\">" + label + "</span>" + p.PrettyString() + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+		html.AssetID = p.PrettyString()
+	}
+	if strings.Contains(r.ID, CSV_BUILDING_KEY) {
+		return nil
+	}
+	if strings.Contains(r.ID, STATE_PARSING_KEY) {
+		timeframe := getTimeframe(r)
+		label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+		addr := getAddresses(r)[0]
+		p, _ := addr.Parse()
+		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span>" + p.PrettyString() + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+	}
 
-	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
-
-	// 	html.HTML = "<span>Building CSV on " + "<span style=\"font-weight: 700\">" + label + "</span>" + " candles " + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
-	// }
-	// if strings.Contains(r.ID, CANDLE_PARSING_KEY) {
-	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
-	// 	html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + "1s" + "</span>" + " candles " + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
-	// }
-
-	return html
+	return &html
 }

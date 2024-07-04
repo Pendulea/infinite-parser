@@ -125,7 +125,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			size, _ := util.Len(ticks)
 			currentReadSize += size
 			if size > 0 {
-				batch[t1] = ticks.Aggregate(timeframe, t1).ToRaw(state.Precision())
+				batch[t1] = ticks.Aggregate(timeframe, t1).ToRaw(state.Decimals())
 				runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, 1)
 			}
 			if len(batch) >= MAX_BATCH_SIZE || currentReadSize >= MAX_READ_SIZE {

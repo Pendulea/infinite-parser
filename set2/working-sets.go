@@ -20,6 +20,16 @@ func (s *WorkingSets) Find(id string) *Set {
 	return v
 }
 
+func (s *WorkingSets) Range() []*Set {
+	mu.RLock()
+	defer mu.RUnlock()
+	list := make([]*Set, 0, len(*s))
+	for _, v := range *s {
+		list = append(list, v)
+	}
+	return list
+}
+
 func (s *WorkingSets) Add(setting pcommon.SetSettings) (*Set, error) {
 	mu.Lock()
 	defer mu.Unlock()

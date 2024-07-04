@@ -107,6 +107,27 @@ func BytesToInt64(b []byte) int64 {
 	return n
 }
 
+// bytesToFloat64 converts a byte slice to a float64.
+func BytesToFloat64(b []byte) float64 {
+	buf := bytes.NewBuffer(b)
+	var n float64
+	err := binary.Read(buf, binary.BigEndian, &n)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return n
+}
+
+// float64ToBytes converts a float64 to a byte slice. (length: 8 bytes)
+func Float64ToBytes(n float64) []byte {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.BigEndian, n)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
 func Len(slice interface{}) (int, error) {
 	v := reflect.ValueOf(slice)
 	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {

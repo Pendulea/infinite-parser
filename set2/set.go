@@ -3,8 +3,11 @@ package set2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
+	"os"
+	"pendulev2/util"
+	"strconv"
+	"strings"
 	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
@@ -14,12 +17,16 @@ import (
 	badger "github.com/dgraph-io/badger/v4"
 )
 
+const TOKEN_A_PRICE_KEY = "tokenAPrice"
+const TOKEN_B_PRICE_KEY = "tokenBPrice"
+
 type Set struct {
 	initialized bool
 	Assets      map[pcommon.AssetAddress]*AssetState
 	Settings    pcommon.SetSettings
 	db          *badger.DB
 	cancels     []context.CancelFunc
+	cache       map[string]interface{}
 }
 
 func (set *Set) JSON() (*pcommon.SetJSON, error) {
@@ -72,6 +79,43 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 		return nil, err
 	}
 
+	var tokenAPrice, tokenBPrice float64
+	firstInstance := false
+
+	listFiles, err := os.ReadDir(settings.DBPath())
+	if err != nil {
+		return nil, err
+	}
+
+	//if the database does not exist
+	if len(listFiles) == 0 {
+
+		firstInstance = true
+		//if the set is a binance pair
+		if settings.IsBinancePair() == nil {
+			symbol0 := strings.ToUpper(settings.ID[0])
+			symbol1 := strings.ToUpper(settings.ID[1])
+
+			//get the price of the first token
+			price, err := util.GetPairPrice(symbol0+"USDT", true)
+			if err != nil {
+				return nil, err
+			}
+			tokenAPrice = price
+
+			//get the price of the second token if it is not a stable coin
+			if !strings.Contains(symbol1, "USD") {
+				price, err := util.GetPairPrice(symbol1+"USDT", true)
+				if err != nil {
+					return nil, err
+				}
+				tokenBPrice = price
+			} else {
+				tokenBPrice = 1.00
+			}
+		}
+	}
+
 	id := settings.IDString()
 	dbPath := settings.DBPath()
 
@@ -80,15 +124,26 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 	if err != nil {
 		return nil, err
 	}
-	logrus.WithFields(logrus.Fields{
-		"symbol": id,
-	}).Info("DB open")
 
 	set := &Set{
 		db:       db,
 		Settings: settings,
 		cancels:  make([]context.CancelFunc, 0),
 		Assets:   make(map[pcommon.AssetAddress]*AssetState),
+		cache:    make(map[string]interface{}),
+	}
+
+	if set.Settings.IsBinancePair() == nil {
+		if firstInstance {
+			if err := set.storePrices(tokenAPrice, tokenBPrice); err != nil {
+				return nil, err
+			}
+		} else {
+			tokenAPrice, tokenBPrice, err = set.getPrices()
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	for _, assetSettings := range settings.Assets {
@@ -96,6 +151,13 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 			return nil, err
 		}
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"symbol":           id,
+		"assets":           len(settings.Settings),
+		set.Settings.ID[0]: strconv.FormatFloat(tokenAPrice, 'f', -1, 64) + "$",
+		set.Settings.ID[1]: strconv.FormatFloat(tokenBPrice, 'f', -1, 64) + "$",
+	}).Info("initialized")
 
 	set.initialized = true
 	return set, nil
@@ -159,7 +221,7 @@ func (set *Set) AddAsset(newAsset pcommon.AssetSettings) error {
 	}
 
 	address := newAsset.Address.AddSetID(set.Settings.ID).BuildAddress()
-	k, err := set.getAddressKey(address)
+	k, err := set.fetchAssetKey(address)
 	if err != nil {
 		return err
 	}
@@ -173,16 +235,16 @@ func (set *Set) AddAsset(newAsset pcommon.AssetSettings) error {
 		}
 	}
 	assetConfig := pcommon.DEFAULT_ASSETS[newAsset.Address.AssetType]
-	fmt.Println(address, *k, assetConfig.DataType)
 	set.Assets[address] = NewAssetState(assetConfig, newAsset, set, k)
+
 	return nil
 }
 
-func (s *Set) getAddressKey(address pcommon.AssetAddress) (*[2]byte, error) {
+func (s *Set) fetchAssetKey(address pcommon.AssetAddress) (*[2]byte, error) {
 	txn := s.db.NewTransaction(false)
 	defer txn.Discard()
 
-	item, err := txn.Get([]byte(address))
+	item, err := txn.Get(s.getAssetKey(address))
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
 			return nil, nil
@@ -199,29 +261,68 @@ func (s *Set) getAddressKey(address pcommon.AssetAddress) (*[2]byte, error) {
 	return &key, nil
 }
 
-func (s *Set) storeAddressKey(address pcommon.AssetAddress, key [2]byte) error {
+func (s *Set) storePrices(tokenA, tokenB float64) error {
+	s.cache[TOKEN_A_PRICE_KEY] = tokenA
+	s.cache[TOKEN_B_PRICE_KEY] = tokenB
+
 	txn := s.db.NewTransaction(true)
 	defer txn.Discard()
 
-	if err := txn.Set([]byte(address), key[:]); err != nil {
+	prices := [16]byte{}
+	copy(prices[:8], util.Float64ToBytes(tokenA))
+	copy(prices[8:], util.Float64ToBytes(tokenB))
+
+	if err := txn.Set(s.getPricesKey(), prices[:]); err != nil {
 		return err
 	}
-	reversedKey := append([]byte(string("key")), key[:]...)
-	if err := txn.Set(reversedKey, []byte(address)); err != nil {
+	return txn.Commit()
+}
+
+func (s *Set) getPrices() (tokenA, tokenB float64, err error) {
+	txn := s.db.NewTransaction(false)
+	defer txn.Discard()
+
+	item, err := txn.Get(s.getPricesKey())
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var prices [16]byte
+	if err := item.Value(func(val []byte) error {
+		copy(prices[:], val)
+		return nil
+	}); err != nil {
+		return 0, 0, err
+	}
+	tokenA = util.BytesToFloat64(prices[:8])
+	tokenB = util.BytesToFloat64(prices[8:])
+
+	s.cache[TOKEN_A_PRICE_KEY] = tokenA
+	s.cache[TOKEN_B_PRICE_KEY] = tokenB
+	return tokenA, tokenB, nil
+}
+
+func (s *Set) storeAddressKey(address pcommon.AssetAddress, assetKey [2]byte) error {
+	txn := s.db.NewTransaction(true)
+	defer txn.Discard()
+
+	if err := txn.Set(s.getAssetKey(address), assetKey[:]); err != nil {
+		return err
+	}
+	if err := txn.Set(s.getAddressKey(assetKey), s.getAssetKey(address)); err != nil {
 		return err
 	}
 
-	if err := txn.Set([]byte("last_key"), key[:]); err != nil {
+	if err := txn.Set(s.getLastUsedAssetKey(), assetKey[:]); err != nil {
 		return err
 	}
 	return txn.Commit()
 }
 
 func (s *Set) newAddressKey() (*[2]byte, error) {
-	k := []byte("last_key")
 	txn := s.db.NewTransaction(false)
 
-	item, err := txn.Get(k)
+	item, err := txn.Get(s.getLastUsedAssetKey())
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
 			return &[2]byte{0, 0}, nil
@@ -241,8 +342,8 @@ func (s *Set) newAddressKey() (*[2]byte, error) {
 Main:
 	for y <= 255 {
 		for x <= 255 {
-			reversedKey := append([]byte(string("key")), []byte{y, x}...)
-			_, err := txn.Get(reversedKey)
+
+			_, err := txn.Get(s.getAddressKey([2]byte{y, x}))
 			if err != nil {
 				if err == badger.ErrKeyNotFound {
 					break Main
@@ -268,4 +369,18 @@ func (s *Set) GetAllAssetsTimeframes() []time.Duration {
 	}
 
 	return lo.Uniq(ret)
+}
+
+func (s *Set) CachedTokenAPrice() float64 {
+	if s.cache[TOKEN_A_PRICE_KEY] == nil {
+		log.Fatal("Token A price not cached")
+	}
+	return s.cache[TOKEN_A_PRICE_KEY].(float64)
+}
+
+func (s *Set) CachedTokenBPrice() float64 {
+	if s.cache[TOKEN_B_PRICE_KEY] == nil {
+		log.Fatal("Token B price not cached")
+	}
+	return s.cache[TOKEN_B_PRICE_KEY].(float64)
 }

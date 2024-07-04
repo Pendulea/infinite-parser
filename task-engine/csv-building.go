@@ -156,7 +156,7 @@ func (parameters *CSVBuildingOrder) Status(runner *gorunner.Runner) pcommon.CSVS
 }
 
 func printBuildCSVStatus(runner *gorunner.Runner) {
-	parameters := getParameters(runner)
+	parameters := getCSVParameters(runner)
 
 	csvStatus := parameters.Status(runner)
 
@@ -233,7 +233,7 @@ func (parameters *CSVBuildingOrder) buildQuerySummaryFile(runner *gorunner.Runne
 }
 
 func buildCSV(runner *gorunner.Runner) error {
-	parameters := getParameters(runner)
+	parameters := getCSVParameters(runner)
 	runner.SetSize().Initial(parameters.From.Int())
 	runner.SetSize().Max(parameters.To.Int())
 
@@ -473,7 +473,7 @@ func (parameters *CSVBuildingOrder) createCSVLine(listData *map[pcommon.AssetAdd
 			continue
 		}
 		first := list.First()
-		precision := order.Asset.Precision()
+		precision := order.Asset.Decimals()
 		columns := order.Columns
 
 		var assetLine []string
@@ -514,14 +514,6 @@ func getLeastFromTime(froms []pcommon.TimeUnit) pcommon.TimeUnit {
 	return min
 }
 
-func getParameters(r *gorunner.Runner) *CSVBuildingOrder {
-	p, ok := gorunner.GetArg[*CSVBuildingOrder](r.Args, ARG_VALUE_PARAMETERS)
-	if !ok {
-		log.Fatal("Parameters not found in runner")
-	}
-	return p
-}
-
 func buildCSVBuildingRunner(parameters *CSVBuildingOrder) *gorunner.Runner {
 	buildID := CSV_BUILDING_KEY + "-" + parameters.ID()
 	runner := gorunner.NewRunner(buildID)
@@ -532,7 +524,7 @@ func buildCSVBuildingRunner(parameters *CSVBuildingOrder) *gorunner.Runner {
 
 	addAssetAddresses(runner, addresses)
 	addTimeframe(runner, parameters.Timeframe)
-	runner.Args[ARG_VALUE_PARAMETERS] = parameters
+	addCSVParameters(runner, parameters)
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		for _, r := range details.RunningRunners {

@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"errors"
+	"pendulev2/util"
 
 	pcommon "github.com/pendulea/pendule-common"
 )
@@ -21,7 +21,7 @@ func (s *RPCService) AddAsset(payload pcommon.RPCRequestPayload) (*pcommon.SetJS
 
 	set := s.Sets.Find(r.SetID)
 	if set == nil {
-		return nil, errors.New("not found")
+		return nil, util.ErrSetNotFound
 	}
 
 	if err := set.AddAsset(r.Asset); err != nil {

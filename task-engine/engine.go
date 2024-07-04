@@ -34,12 +34,19 @@ func (e *engine) Init(activeSets *setlib.WorkingSets) {
 func (e *engine) GetHTMLStatuses() []pcommon.StatusHTML {
 	list := []pcommon.StatusHTML{}
 	for _, r := range e.RunningRunners() {
-		list = append(list, HTMLify(r))
+		html := HTMLify(r)
+		if html != nil {
+			list = append(list, *html)
+		}
 	}
 	return list
 }
 
 func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.Duration) error {
+	if err := state.FillDependencies(e.Sets); err != nil {
+		return err
+	}
+
 	if _, err := pcommon.Format.TimeFrameToLabel(timeframe); err != nil {
 		return err
 	}
@@ -53,6 +60,9 @@ func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.D
 }
 
 func (e *engine) AddTimeframeDeletion(state *setlib.AssetState, timeframe time.Duration) error {
+	if err := state.FillDependencies(e.Sets); err != nil {
+		return err
+	}
 	if timeframe < pcommon.Env.MIN_TIME_FRAME {
 		return util.ErrTimeframeTooSmall
 	}
@@ -67,12 +77,22 @@ func (e *engine) AddCSVBuilding(packedOrder CSVBuildingOrderPacked) error {
 	if err != nil {
 		return err
 	}
+	for _, order := range p.Orders {
+		err := order.Asset.FillDependencies(e.Sets)
+		if err != nil {
+			return err
+		}
+	}
+
 	r := buildCSVBuildingRunner(p)
 	e.Add(r)
 	return nil
 }
 
 func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
+	if err := asset.FillDependencies(e.Sets); err != nil {
+		return err
+	}
 	date, err := asset.ShouldSync()
 	if err != nil {
 		return err
