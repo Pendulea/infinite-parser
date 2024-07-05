@@ -3,7 +3,6 @@ package set2
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
@@ -29,7 +28,7 @@ func ParseArrayOrder(sets WorkingSets, timeframe time.Duration, listRawOrders []
 			return nil, fmt.Errorf("asset address %s is invalid", assetAddress)
 		}
 		columns := orderPacked[1:]
-		setID := strings.ToLower(strings.Join(assetAddressParsed.SetID, ""))
+		setID := assetAddressParsed.IDString()
 		set := sets.Find(setID)
 		if set == nil {
 			return nil, fmt.Errorf("set %s not found", setID)

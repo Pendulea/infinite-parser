@@ -23,7 +23,7 @@ func (pm *SetManager) Add(newSet pcommon.SetSettings, firstTimeAdd bool) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	list, err := pullListFromJSON(getJSONPath())
+	list, err := PullListFromJSON(GetJSONPath())
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (pm *SetManager) Add(newSet pcommon.SetSettings, firstTimeAdd bool) error {
 			return err
 		}
 
-		if err := updateListToJSON(append(list, newSet), getJSONPath()); err != nil {
+		if err := UpdateListToJSON(append(list, newSet)); err != nil {
 			return err
 		}
 	}
@@ -59,7 +59,7 @@ func (pm *SetManager) Add(newSet pcommon.SetSettings, firstTimeAdd bool) error {
 	if set != nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		set.AddCancelFunc(cancel)
-		util.ScheduleTaskEvery(ctx, time.Minute*3, func() {
+		util.ScheduleTaskEvery(ctx, time.Minute*1, func() {
 			runSetTasks(set)
 		})
 		runSetTasks(set)
@@ -73,22 +73,22 @@ func Init(activeSets *setlib.WorkingSets, initSetPath string) *SetManager {
 		sets: activeSets,
 		mu:   sync.RWMutex{},
 	}
-	plp := getJSONPath()
+	plp := GetJSONPath()
 	var errr error = nil
 	var sets []pcommon.SetSettings
 	firstTimeAdd := false
 
 	if _, err := os.Stat(plp); err != nil {
-		sets, errr = pullListFromJSON(initSetPath)
+		sets, errr = PullListFromJSON(initSetPath)
 		if errr != nil {
 			log.Fatalf("Error reading sets: %s", errr)
 		}
-		if err := updateListToJSON([]pcommon.SetSettings{}, plp); err != nil {
+		if err := UpdateListToJSON([]pcommon.SetSettings{}); err != nil {
 			log.Fatalf("Error creating sets.json file: %s", err)
 		}
 		firstTimeAdd = true
 	} else {
-		sets, errr = pullListFromJSON(plp)
+		sets, errr = PullListFromJSON(plp)
 		if errr != nil {
 			log.Fatalf("Error reading sets: %s", errr)
 		}

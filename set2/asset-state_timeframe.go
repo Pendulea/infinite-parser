@@ -24,7 +24,6 @@ func (state *AssetState) IsTimeframeIndexUpToDate(timeFrame time.Duration) (bool
 	if err != nil {
 		return false, err
 	}
-
 	l2, err := state.GetLastTimeframeIndexingDate(timeFrame)
 	if err != nil {
 		return false, err
@@ -34,7 +33,7 @@ func (state *AssetState) IsTimeframeIndexUpToDate(timeFrame time.Duration) (bool
 	}
 
 	tTF := l2.Add(timeFrame)
-	return pcommon.Format.FormatDateStr(l1.ToTime()) == pcommon.Format.FormatDateStr(l2.ToTime()) || !(tTF < l1), nil
+	return !(tTF < l1), nil
 }
 
 func (state *AssetState) GetLastTimeframeIndexingDate(timeFrame time.Duration) (pcommon.TimeUnit, error) {

@@ -9,7 +9,6 @@ import (
 
 	"github.com/fantasim/gorunner"
 	pcommon "github.com/pendulea/pendule-common"
-	log "github.com/sirupsen/logrus"
 )
 
 var Engine *engine = nil
@@ -120,16 +119,11 @@ func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
 }
 
 func (e *engine) RunAssetTasks(asset *setlib.AssetState) error {
-	Engine.AddStateParsing(asset)
-	tfs, err := asset.GetTimeFrameToReindex()
-	if err != nil {
-		log.WithFields(log.Fields{
-			"address": asset.Address(),
-			"error":   err.Error(),
-		}).Error("Error getting time frame list")
+	if err := asset.FillDependencies(e.Sets); err != nil {
 		return err
 	}
-	for _, tf := range tfs {
+	Engine.AddStateParsing(asset)
+	for _, tf := range asset.SetRef.GetAllAssetsTimeframes() {
 		Engine.AddTimeframeIndexing(asset, tf)
 	}
 	return nil

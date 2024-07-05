@@ -9,11 +9,11 @@ import (
 	pcommon "github.com/pendulea/pendule-common"
 )
 
-func getJSONPath() string {
+func GetJSONPath() string {
 	return filepath.Join(pcommon.Env.DATABASES_DIR, "_sets.json")
 }
 
-func pullListFromJSON(setsPath string) ([]pcommon.SetSettings, error) {
+func PullListFromJSON(setsPath string) ([]pcommon.SetSettings, error) {
 	data, err := os.ReadFile(setsPath)
 	if err != nil {
 		return nil, err
@@ -32,12 +32,12 @@ func pullListFromJSON(setsPath string) ([]pcommon.SetSettings, error) {
 	return list, nil
 }
 
-func updateListToJSON(newList []pcommon.SetSettings, setsPath string) error {
+func UpdateListToJSON(newList []pcommon.SetSettings) error {
 	data, err := json.Marshal(newList)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(setsPath, data, 0644); err != nil {
+	if err := os.WriteFile(GetJSONPath(), data, 0644); err != nil {
 		return err
 	}
 	return nil

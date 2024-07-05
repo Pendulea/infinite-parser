@@ -202,15 +202,14 @@ func (set *Set) AddAsset(newAsset pcommon.AssetSettings) error {
 		return err
 	}
 
+	settingsCopy := set.Settings.Copy()
 	if set.initialized {
 		setTypeBefore, err := set.Settings.GetSetType()
 		if err != nil {
 			return err
 		}
 
-		settingsCopy := set.Settings.Copy()
 		settingsCopy.Assets = append(settingsCopy.Assets, newAsset)
-
 		setTypeAfter, err := settingsCopy.GetSetType()
 		if err != nil {
 			return err
@@ -236,6 +235,9 @@ func (set *Set) AddAsset(newAsset pcommon.AssetSettings) error {
 	}
 	assetConfig := pcommon.DEFAULT_ASSETS[newAsset.Address.AssetType]
 	set.Assets[address] = NewAssetState(assetConfig, newAsset, set, k)
+	if set.initialized {
+		set.Settings = *settingsCopy
+	}
 
 	return nil
 }

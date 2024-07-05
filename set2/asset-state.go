@@ -99,9 +99,14 @@ func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
 		}
 	}
 
+	addressJSON, err := state.ParsedAddress().JSON()
+	if err != nil {
+		return nil, err
+	}
+
 	return &pcommon.AssetJSON{
 		AddressString:              state.Address(),
-		Address:                    state.ParsedAddress(),
+		Address:                    addressJSON,
 		ConsistencyMaxLookbackDays: state.consistencyMaxLookbackDays,
 		Consistencies:              consistencies,
 		DataType:                   state.DataType(),
@@ -157,7 +162,7 @@ func (state *AssetState) FillDependencies(activeSets *WorkingSets) error {
 			if err != nil {
 				return err
 			}
-			setID := strings.ToLower(strings.Join(p.SetID, ""))
+			setID := p.IDString()
 			set := activeSets.Find(setID)
 			if set == nil {
 				return fmt.Errorf("set %s not found", setID)

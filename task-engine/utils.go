@@ -137,7 +137,7 @@ func HTMLify(r *gorunner.Runner) *pcommon.StatusHTML {
 
 		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
 
-		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span>" + p.PrettyString() + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span> " + p.PrettyString() + " (<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
 		html.AssetID = p.PrettyString()
 	}
 	if strings.Contains(r.ID, TIMEFRAME_DELETION_KEY) {
@@ -148,7 +148,7 @@ func HTMLify(r *gorunner.Runner) *pcommon.StatusHTML {
 
 		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
 
-		html.HTML = "<span>Deleting " + "<span style=\"font-weight: 700\">" + label + "</span>" + p.PrettyString() + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+		html.HTML = "<span>Deleting " + "<span style=\"font-weight: 700\">" + label + "</span> " + p.PrettyString() + "  (<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
 		html.AssetID = p.PrettyString()
 	}
 	if strings.Contains(r.ID, CSV_BUILDING_KEY) {
@@ -160,7 +160,7 @@ func HTMLify(r *gorunner.Runner) *pcommon.StatusHTML {
 		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
 		addr := getAddresses(r)[0]
 		p, _ := addr.Parse()
-		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span>" + p.PrettyString() + "(<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span> " + p.PrettyString() + " (<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
 	}
 
 	return &html
