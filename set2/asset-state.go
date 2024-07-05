@@ -156,7 +156,7 @@ func (state *AssetState) FillDependencies(activeSets *WorkingSets) error {
 	depsSynchronized := len(state.settings.Address.Dependencies) == len(state.DependenciesRef)
 
 	if !depsSynchronized {
-		state.DependenciesRef = make(Dependencies, len(state.settings.Address.Dependencies))
+		refs := make(Dependencies, len(state.settings.Address.Dependencies))
 		for i, dep := range state.settings.Address.Dependencies {
 			p, err := dep.Parse()
 			if err != nil {
@@ -171,8 +171,9 @@ func (state *AssetState) FillDependencies(activeSets *WorkingSets) error {
 			if depAsset == nil {
 				return fmt.Errorf("asset %s not found", dep)
 			}
-			state.DependenciesRef[i] = depAsset
+			refs[i] = depAsset
 		}
+		state.DependenciesRef = refs
 	}
 
 	if depsSynchronized && state.settings.MinDataDate == "" {

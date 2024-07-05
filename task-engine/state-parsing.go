@@ -70,6 +70,11 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 
 func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetState) {
 	process := func() error {
+
+		if state.ParsedAddress().HasDependencies() {
+			return nil
+		}
+
 		date := getDate(runner)
 
 		dateTime, err := pcommon.Format.StrDateToDate(date)

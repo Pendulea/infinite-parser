@@ -208,3 +208,37 @@ func (state *AssetState) GetLatestData(timeframe time.Duration) (interface{}, pc
 	}
 	return state.getSingleData(settings)
 }
+
+func (state *AssetState) GetPrevState(timeframe time.Duration) ([]byte, error) {
+	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
+	if err != nil {
+		return nil, err
+	}
+
+	txn := state.NewTX(false)
+	defer txn.Discard()
+
+	itm, err := txn.Get(state.GetPrevStateKey(label))
+	if err != nil {
+		if err == badger.ErrKeyNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return itm.ValueCopy(nil)
+}
+
+func (state *AssetState) StorePrevState(data []byte, timeframe time.Duration) error {
+	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
+	if err != nil {
+		return err
+	}
+
+	txn := state.NewTX(true)
+	defer txn.Discard()
+
+	if err := txn.Set(state.GetPrevStateKey(label), data); err != nil {
+		return err
+	}
+	return txn.Commit()
+}

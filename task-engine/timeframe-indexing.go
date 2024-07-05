@@ -52,7 +52,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 
 	process := func() error {
 
-		if !state.IsUnit() && !state.IsQuantity() {
+		if (!state.IsUnit() && !state.IsQuantity()) || state.ParsedAddress().HasDependencies() {
 			return nil
 		}
 
@@ -139,7 +139,6 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			t0 = t1
 			t1 = t1.Add(timeframe)
 			runner.SetSize().Current(t0.Int(), false)
-
 			if runner.MustInterrupt() {
 				break
 			}
@@ -165,7 +164,6 @@ func buildTimeframeIndexingRunner(state *setlib.AssetState, timeframe time.Durat
 
 	addTimeframe(runner, timeframe)
 	addAssetAddresses(runner, []pcommon.AssetAddress{state.Address()})
-
 	addTimeframeIndexingRunnerProcess(runner, state)
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {

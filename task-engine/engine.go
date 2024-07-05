@@ -41,8 +41,8 @@ func (e *engine) GetHTMLStatuses() []pcommon.StatusHTML {
 	return list
 }
 
-func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.Duration) error {
-	if err := state.FillDependencies(e.Sets); err != nil {
+func (e *engine) AddTimeframeIndexing(asset *setlib.AssetState, timeframe time.Duration) error {
+	if err := asset.FillDependencies(e.Sets); err != nil {
 		return err
 	}
 
@@ -53,7 +53,13 @@ func (e *engine) AddTimeframeIndexing(state *setlib.AssetState, timeframe time.D
 		return util.ErrTimeframeTooSmall
 	}
 
-	r := buildTimeframeIndexingRunner(state, timeframe)
+	if asset.ParsedAddress().HasDependencies() {
+		r := buildIndicatorIndexingRunner(asset, timeframe)
+		e.Add(r)
+		return nil
+	}
+
+	r := buildTimeframeIndexingRunner(asset, timeframe)
 	e.Add(r)
 	return nil
 }
@@ -92,12 +98,24 @@ func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
 	if err := asset.FillDependencies(e.Sets); err != nil {
 		return err
 	}
+
 	date, err := asset.ShouldSync()
 	if err != nil {
 		return err
 	}
 	if date == nil {
 		return util.ErrAlreadySync
+	}
+
+	if asset.ParsedAddress().HasDependencies() {
+		r := buildIndicatorIndexingRunner(asset, pcommon.Env.MIN_TIME_FRAME)
+		r.AddProcessCallback(func(engine *gorunner.Engine, runner *gorunner.Runner) {
+			if runner.CountSteps() >= 1 && runner.GetError() == nil {
+				e.RunAssetTasks(asset)
+			}
+		})
+		e.Add(r)
+		return nil
 	}
 
 	info, err := os.Stat(asset.SetRef.Settings.BuildArchiveFilePath(asset.Type(), *date, "zip"))
