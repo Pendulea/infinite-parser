@@ -9,7 +9,6 @@ import (
 
 	"github.com/fantasim/gorunner"
 	pcommon "github.com/pendulea/pendule-common"
-	"github.com/samber/lo"
 )
 
 func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetState) {
@@ -17,16 +16,20 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 
 	process := func() error {
 
+		// If the state is a point and has no dependencies, we don't need to index it
 		if !state.IsPoint() && !state.ParsedAddress().HasDependencies() {
 			return nil
 		}
 
 		timeframe := getTimeframe(runner)
+
+		//get the previous state
 		prevIndicatorState, err := state.GetPrevState(timeframe)
 		if err != nil {
 			return err
 		}
 
+		//calculate the minimum time of the dependencies
 		minDependenciesTime := pcommon.TimeUnit(math.MaxInt64)
 		for _, dep := range state.DependenciesRef {
 			maxTimeDep, err := dep.GetLastConsistencyTime(timeframe)
@@ -38,27 +41,27 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			}
 		}
 
-		if timeframe == pcommon.Env.MIN_TIME_FRAME {
-			consistentTime, err := state.GetLastConsistencyTime(timeframe)
-			if err != nil {
-				return err
-			}
-			if minDependenciesTime <= consistentTime {
-				return nil
-			}
-		} else {
+		//if the minimum time of the dependencies is greater than the current time, we don't need to index
+		if minDependenciesTime > pcommon.NewTimeUnitFromTime(time.Now()) {
+			return nil
+		}
+
+		if timeframe != pcommon.Env.MIN_TIME_FRAME {
 			if err := state.AddIfUnfoundInReadList(timeframe); err != nil {
 				return err
 			}
-			sync, err := state.IsTimeframeIndexUpToDate(timeframe)
-			if err != nil {
-				return err
-			}
-			if sync {
-				return nil
-			}
 		}
 
+		consistentTime, err := state.GetLastConsistencyTime(timeframe)
+		if err != nil {
+			return err
+		}
+		//if the last consistency time is equal than the minimum time of the dependencies, we don't need to index
+		if minDependenciesTime <= consistentTime {
+			return nil
+		}
+
+		//log every 5 seconds the indexing status
 		go func() {
 			for runner.Task.IsRunning() {
 				time.Sleep(5 * time.Second)
@@ -73,24 +76,30 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			return err
 		}
 		var t0, t1 pcommon.TimeUnit
+		//if there is no previous indexing
 		if prevT1 == 0 {
+			//we build the initial candle range
 			t0Time, t1Time := buildInitialCandleRange(state.DataHistoryTime0().ToTime(), timeframe)
 			t0 = pcommon.NewTimeUnitFromTime(t0Time)
 			t1 = pcommon.NewTimeUnitFromTime(t1Time)
+			//we instantiate the previous list
 			for index, dep := range state.DependenciesRef {
 				prevList[index] = pcommon.NewTypeTimeArray(dep.DataType())
 			}
 
+			//if there is a previous indexing
 		} else {
+			//we set the previous indexing date to t0
 			t0 = prevT1
 			t1 = t0.Add(timeframe)
 
+			//we get the previous ticks for each dependency, in case we need to cumulate them
 			for index, dep := range state.DependenciesRef {
 				settings := set2.DataLimitSettings{
 					TimeFrame:      timeframe,
-					Limit:          MAX_BATCH_SIZE,
+					Limit:          10,
 					StartByEnd:     true,
-					OffsetUnixTime: t1.Add(timeframe),
+					OffsetUnixTime: t0.Add(timeframe),
 				}
 				ticks, err := dep.GetDataLimit(settings, false)
 				if err != nil {
@@ -100,40 +109,42 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			}
 		}
 
+		//we set the the min and max size of the runner
 		runner.SetSize().Initial(t0.Int())
 		runner.SetSize().Max(minDependenciesTime.Int())
 
+		//we build the indicator data builder
 		b := pcommon.NewIndicatorDataBuilder(state.Type(), prevIndicatorState, state.ParsedAddress().Arguments)
 
 		for t1 < minDependenciesTime {
 			batch := pcommon.PointTimeArray{}
-
-			isLastBatch := false
 			currentList := make([]pcommon.DataList, len(state.DependenciesRef))
+
+			//we get the ticks for each dependency
 			for index, dep := range state.DependenciesRef {
-				settings := set2.DataLimitSettings{
-					TimeFrame:      timeframe,
-					Limit:          MAX_BATCH_SIZE,
-					StartByEnd:     false,
-					OffsetUnixTime: t1,
-				}
-				ticks, err := dep.GetDataLimit(settings, false)
+
+				//interval duration between t0 and the minimum time of the dependencies (end of the indexing)
+				totalIntervalDuration := time.Duration((minDependenciesTime - t0).Int() * int64(pcommon.TIME_UNIT_DURATION))
+				//we calculate the number of ticks in the interval
+				maxBatchSize := totalIntervalDuration / timeframe
+				//we take the minimum between the maxBatchSize and the MAX_BATCH_SIZE
+				maxTickCount := int(math.Min(float64(maxBatchSize), float64(MAX_BATCH_SIZE)))
+
+				//we calculate the end of the interval
+				t1 = t0.Add(timeframe * time.Duration(maxTickCount))
+
+				//we get the ticks between t0 and newT1
+				ticks, err := dep.GetInDataRange(t0, t1, timeframe, nil, nil)
 				if err != nil {
 					return err
 				}
 				currentList[index] = ticks
 			}
 
-			if lo.EveryBy(currentList, func(ticks pcommon.DataList) bool {
-				return !(ticks.Len() < MAX_BATCH_SIZE-1)
-			}) {
-				isLastBatch = true
-			}
-
 			for {
+				//we get the earliest tick of the dependencies
 				minTime := pcommon.TimeUnit(math.MaxInt64)
 				var minDependency *setlib.AssetState = nil
-
 				for dependencyIndex, ticks := range currentList {
 					first := ticks.First()
 					if first != nil {
@@ -144,6 +155,7 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 					}
 				}
 
+				//if there is no earliest tick, we break
 				if minDependency == nil {
 					break
 				}
@@ -190,14 +202,24 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 
 			runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, int64(len(batch)))
 
+			if err := state.StorePrevState(b.PrevState(), timeframe); err != nil {
+				return err
+			}
+
 			if err := state.Store(batch.ToRaw(state.Decimals()), timeframe, t1); err != nil {
 				return err
 			}
-			if isLastBatch {
+
+			if runner.MustInterrupt() {
 				break
 			}
+
+			t0 = t1
+			t1 = t1.Add(timeframe)
+			runner.SetSize().Current(t0.Int(), false)
 		}
 		runner.AddStep()
+		printTimeframeIndexingStatus(runner, state)
 		return nil
 	}
 

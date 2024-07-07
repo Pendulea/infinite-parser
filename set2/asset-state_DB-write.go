@@ -128,3 +128,18 @@ func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDa
 	}
 	return totalDeleted, txn.Commit()
 }
+
+func (state *AssetState) StorePrevState(data []byte, timeframe time.Duration) error {
+	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
+	if err != nil {
+		return err
+	}
+
+	txn := state.NewTX(true)
+	defer txn.Discard()
+
+	if err := txn.Set(state.GetPrevStateKey(label), data); err != nil {
+		return err
+	}
+	return txn.Commit()
+}

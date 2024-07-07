@@ -227,18 +227,3 @@ func (state *AssetState) GetPrevState(timeframe time.Duration) ([]byte, error) {
 	}
 	return itm.ValueCopy(nil)
 }
-
-func (state *AssetState) StorePrevState(data []byte, timeframe time.Duration) error {
-	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
-	if err != nil {
-		return err
-	}
-
-	txn := state.NewTX(true)
-	defer txn.Discard()
-
-	if err := txn.Set(state.GetPrevStateKey(label), data); err != nil {
-		return err
-	}
-	return txn.Commit()
-}
