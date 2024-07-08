@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"os"
 	setlib "pendulev2/set2"
 	"time"
@@ -77,19 +78,30 @@ func (e *engine) AddTimeframeDeletion(state *setlib.AssetState, timeframe time.D
 	return nil
 }
 
-func (e *engine) AddCSVBuilding(packedOrder CSVBuildingOrderPacked) error {
-	p, err := parsePackedOrder(*e.Sets, packedOrder)
+func (e *engine) AddCSVBuilding(from int64, to int64, timeframe int64, packed [][]string) error {
+	p := setlib.CSVOrderPacked{
+		Header: setlib.CSVOrderHeader{
+			From:      pcommon.NewTimeUnit(from),
+			To:        pcommon.NewTimeUnit(to),
+			Timeframe: time.Duration(timeframe) * pcommon.TIME_UNIT_DURATION,
+		},
+		Orders: packed,
+	}
+	unpacked, err := p.Unpack(*e.Sets)
 	if err != nil {
 		return err
 	}
-	for _, order := range p.Orders {
+	for _, order := range unpacked.Orders {
 		err := order.Asset.FillDependencies(e.Sets)
 		if err != nil {
 			return err
 		}
 	}
+	if len(unpacked.Orders) == 0 {
+		return errors.New("no orders to build")
+	}
 
-	r := buildCSVBuildingRunner(p)
+	r := buildCSVBuildingRunner(unpacked)
 	e.Add(r)
 	return nil
 }

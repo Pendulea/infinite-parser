@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
-	pcommon "github.com/pendulea/pendule-common"
+	setlib "pendulev2/set2"
 
 	"github.com/fantasim/gorunner"
+	pcommon "github.com/pendulea/pendule-common"
 )
 
 const (
@@ -29,12 +30,12 @@ func addAssetAddresses(r *gorunner.Runner, addresses []pcommon.AssetAddress) {
 	r.Args[ARG_VALUE_ADDRESSES] = addresses
 }
 
-func addCSVParameters(r *gorunner.Runner, parameters *CSVBuildingOrder) {
+func addCSVParameters(r *gorunner.Runner, parameters *setlib.CSVOrderUnpacked) {
 	r.Args[ARG_VALUE_PARAMETERS] = parameters
 }
 
-func getCSVParameters(r *gorunner.Runner) *CSVBuildingOrder {
-	parameters, ok := gorunner.GetArg[*CSVBuildingOrder](r.Args, ARG_VALUE_PARAMETERS)
+func getCSVParameters(r *gorunner.Runner) *setlib.CSVOrderUnpacked {
+	parameters, ok := gorunner.GetArg[*setlib.CSVOrderUnpacked](r.Args, ARG_VALUE_PARAMETERS)
 	if !ok {
 		log.Fatal("Parameters not found in runner")
 	}
@@ -105,8 +106,7 @@ func GetCSVList() ([]pcommon.CSVStatus, error) {
 
 	for _, runner := range Engine.RunningRunners() {
 		if strings.Contains(runner.ID, CSV_BUILDING_KEY) {
-			parameters := getCSVParameters(runner)
-			status := parameters.Status(runner)
+			status := GetCSVStatus(runner)
 			used[status.BuildID] = true
 			statuses = append(statuses, status)
 		}
@@ -119,7 +119,8 @@ func GetCSVList() ([]pcommon.CSVStatus, error) {
 			if _, ok := used[buildID]; ok {
 				continue
 			}
-			statuses = append(statuses, CSVBuildingOrderIDToStatus(buildID, file))
+			setlib.ParseOrderHeaderFromID(buildID)
+			statuses = append(statuses, setlib.CSVIDToStatus(buildID, file))
 		}
 	}
 	return statuses, nil

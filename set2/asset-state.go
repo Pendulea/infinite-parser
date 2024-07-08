@@ -82,21 +82,19 @@ func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
 		consistencies[0].Range[1] = tmax
 	}
 
-	if !state.ParsedAddress().HasDependencies() && (state.IsQuantity() || state.IsUnit()) {
-		for _, v := range *state.readList.readList {
-			consistency := pcommon.Consistency{
-				Range:     [2]pcommon.TimeUnit{t0, t0},
-				Timeframe: v.Timeframe.Milliseconds(),
-			}
-			tmax, err := state.GetLastConsistencyTime(v.Timeframe)
-			if err != nil {
-				return nil, err
-			}
-			if tmax > t0 {
-				consistency.Range[1] = tmax
-			}
-			consistencies = append(consistencies, consistency)
+	for _, v := range *state.readList.readList {
+		consistency := pcommon.Consistency{
+			Range:     [2]pcommon.TimeUnit{t0, t0},
+			Timeframe: v.Timeframe.Milliseconds(),
 		}
+		tmax, err := state.GetLastConsistencyTime(v.Timeframe)
+		if err != nil {
+			return nil, err
+		}
+		if tmax > t0 {
+			consistency.Range[1] = tmax
+		}
+		consistencies = append(consistencies, consistency)
 	}
 
 	addressJSON, err := state.ParsedAddress().JSON()

@@ -1,10 +1,6 @@
 package rpc
 
 import (
-	"time"
-
-	setlib "pendulev2/set2"
-
 	pcommon "github.com/pendulea/pendule-common"
 )
 
@@ -30,40 +26,41 @@ func (s *RPCService) GetTicks(payload pcommon.RPCRequestPayload) (*GetTicksRespo
 	if err != nil {
 		return nil, err
 	}
+	return nil, nil
 
-	timeframe := time.Duration(r.Timeframe) * time.Millisecond
-	if _, err := pcommon.Format.TimeFrameToLabel(timeframe); err != nil {
-		return nil, err
-	}
+	// timeframe := time.Duration(r.Timeframe) * time.Millisecond
+	// if _, err := pcommon.Format.TimeFrameToLabel(timeframe); err != nil {
+	// 	return nil, err
+	// }
 
-	listOrders, err := setlib.ParseArrayOrder(*s.Sets, timeframe, r.Orders)
-	if err != nil {
-		return nil, err
-	}
-	ret := &GetTicksResponse{
-		Assets: make(map[pcommon.AssetAddress]TickList),
-	}
-	for _, order := range listOrders {
-		settings := setlib.DataLimitSettings{
-			TimeFrame:      timeframe,
-			Limit:          2000,
-			OffsetUnixTime: pcommon.NewTimeUnit(r.OffsetUnixTime),
-			StartByEnd:     true,
-		}
-		ticks, err := order.Asset.GetDataLimit(settings, true)
-		if err != nil {
-			return nil, err
-		}
+	// listOrders, err := setlib.ParseArrayOrder(*s.Sets, timeframe, r.Orders)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// ret := &GetTicksResponse{
+	// 	Assets: make(map[pcommon.AssetAddress]TickList),
+	// }
+	// for _, order := range listOrders {
+	// 	settings := setlib.DataLimitSettings{
+	// 		TimeFrame:      timeframe,
+	// 		Limit:          2000,
+	// 		OffsetUnixTime: pcommon.NewTimeUnit(r.OffsetUnixTime),
+	// 		StartByEnd:     true,
+	// 	}
+	// 	ticks, err := order.Asset.GetDataLimit(settings, true)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		address := order.Asset.Address()
-		tl := TickList{
-			DataType: order.Asset.DataType(),
-		}
-		tl.List, err = ticks.ToJSON(order.Columns.Columns())
-		if err != nil {
-			return nil, err
-		}
-		ret.Assets[address] = tl
-	}
-	return ret, nil
+	// 	address := order.Asset.Address()
+	// 	tl := TickList{
+	// 		DataType: order.Asset.DataType(),
+	// 	}
+	// 	tl.List, err = ticks.ToJSON(order.Columns.Columns())
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	ret.Assets[address] = tl
+	// }
+	// return ret, nil
 }

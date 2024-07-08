@@ -34,7 +34,7 @@ require (
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/pendulea/pendule-common v1.1.4
+	github.com/pendulea/pendule-common v1.1.5
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/samber/lo v1.39.0
 	github.com/shirou/gopsutil/v3 v3.24.5
