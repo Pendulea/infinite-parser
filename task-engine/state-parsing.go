@@ -68,10 +68,12 @@ func printStateParsingStatus(runner *gorunner.Runner, asset *setlib.AssetState) 
 	}
 }
 
-func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetState) {
+func addStateParsingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetState) {
 	process := func() error {
 
-		if state.ParsedAddress().HasDependencies() {
+		timeframe := getTimeframe(runner)
+
+		if asset.ParsedAddress().HasDependencies() {
 			return nil
 		}
 
@@ -82,10 +84,15 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 			return err
 		}
 
-		archiveFilePathCSV := state.SetRef.Settings.BuildArchiveFilePath(state.Type(), date, "csv")
-		archiveFilePathZIP := state.SetRef.Settings.BuildArchiveFilePath(state.Type(), date, "zip")
+		prevState, err := asset.GetLastPrevStateCached(timeframe)
+		if err != nil {
+			return err
+		}
 
-		archiveFolderPath := state.SetRef.Settings.BuildArchiveFolderPath(state.Type())
+		archiveFilePathCSV := asset.SetRef.Settings.BuildArchiveFilePath(asset.Type(), date, "csv")
+		archiveFilePathZIP := asset.SetRef.Settings.BuildArchiveFilePath(asset.Type(), date, "zip")
+
+		archiveFolderPath := asset.SetRef.Settings.BuildArchiveFolderPath(asset.Type())
 
 		defer func() {
 			if os.Remove(archiveFilePathCSV) == nil {
@@ -103,7 +110,7 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 		go func() {
 			time.Sleep(2 * time.Second)
 			for runner.IsRunning() {
-				printStateParsingStatus(runner, state)
+				printStateParsingStatus(runner, asset)
 				time.Sleep(5 * time.Second)
 			}
 		}()
@@ -117,30 +124,35 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetSt
 		}
 
 		runner.AddStep()
-		csvLines, err := ParseFromCSV(state, date)
+		csvLines, err := ParseFromCSV(asset, date)
 		if err != nil {
 			return err
 		}
 		if len(csvLines) == 0 {
 			log.WithFields(log.Fields{
-				"set":   state.SetRef.ID(),
-				"asset": state.Address(),
+				"set":   asset.SetRef.ID(),
+				"asset": asset.Address(),
 				"date":  date,
 			}).Warn("No data found in CSV file")
 		}
 
 		runner.SetSize().Max(int64(len(csvLines)))
 		runner.AddStep()
-		dataList := AggregateLinesToValuesToPrices(csvLines, state)
+		dataList := AggregateLinesToValuesToPrices(csvLines, asset)
+		for _, tick := range dataList.Map() {
+			prevState.CheckUpdateMax(tick.Max(), tick.GetTime())
+			prevState.CheckUpdateMin(tick.Min(), tick.GetTime())
+		}
+
 		runner.SetStatValue(STAT_VALUE_DATA_COUNT, int64(dataList.Len()))
 		runner.AddStep()
 
-		if err := state.Store(dataList.ToRaw(state.Decimals()), pcommon.Env.MIN_TIME_FRAME, pcommon.NewTimeUnitFromTime(dateTime).Add(time.Hour*24)); err != nil {
+		if err := asset.Store(dataList.ToRaw(asset.Decimals()), timeframe, prevState.Copy(), pcommon.NewTimeUnitFromTime(dateTime).Add(time.Hour*24)); err != nil {
 			return err
 		}
 
 		runner.AddStep()
-		printStateParsingStatus(runner, state)
+		printStateParsingStatus(runner, asset)
 		return nil
 	}
 	runner.AddProcess(process)

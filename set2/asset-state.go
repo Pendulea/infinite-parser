@@ -53,10 +53,6 @@ func (state *AssetState) ParsedAddress() pcommon.AssetAddressParsed {
 	return state.settings.Address.AddSetID(state.SetRef.Settings.ID)
 }
 
-// func (state *AssetState) Precision() int8 {
-// 	return state.settings.Decimals
-// }
-
 func (state *AssetState) Key() [2]byte {
 	if state.key == nil {
 		log.Fatal("Key not set")
@@ -70,24 +66,16 @@ func (state *AssetState) DataType() pcommon.DataType {
 
 func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
 	t0 := state.DataHistoryTime0()
-	consistencies := []pcommon.Consistency{{
-		Range:     [2]pcommon.TimeUnit{t0, t0},
-		Timeframe: pcommon.Env.MIN_TIME_FRAME.Milliseconds(),
-	}}
-	tmax, err := state.GetLastConsistencyTime(pcommon.Env.MIN_TIME_FRAME)
-	if err != nil {
-		return nil, err
-	}
-	if tmax > t0 {
-		consistencies[0].Range[1] = tmax
-	}
+	consistencies := []pcommon.Consistency{}
 
 	for _, v := range *state.readList.readList {
 		consistency := pcommon.Consistency{
 			Range:     [2]pcommon.TimeUnit{t0, t0},
 			Timeframe: v.Timeframe.Milliseconds(),
+			MinValue:  v.prevState.min,
+			MaxValue:  v.prevState.max,
 		}
-		tmax, err := state.GetLastConsistencyTime(v.Timeframe)
+		tmax, err := state.GetLastConsistencyTimeCached(v.Timeframe)
 		if err != nil {
 			return nil, err
 		}
@@ -126,6 +114,7 @@ func NewAssetState(config pcommon.AssetStateConfig, settings pcommon.AssetSettin
 	if err := state.pullReadList(); err != nil {
 		log.Fatal(err)
 	}
+
 	return &state
 }
 

@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	setlib "pendulev2/set2"
-	"pendulev2/util"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
@@ -48,18 +47,18 @@ func printTimeframeIndexingStatus(runner *gorunner.Runner, state *setlib.AssetSt
 	}
 }
 
-func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.AssetState) {
+func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetState) {
 
 	process := func() error {
 
-		if (!state.IsUnit() && !state.IsQuantity()) || state.ParsedAddress().HasDependencies() {
+		if (!asset.IsUnit() && !asset.IsQuantity()) || asset.ParsedAddress().HasDependencies() {
 			return nil
 		}
 
 		task := runner.Task
 		timeframe, _ := gorunner.GetArg[time.Duration](task.Args, ARG_VALUE_TIMEFRAME)
 
-		sync, err := state.IsTimeframeIndexUpToDate(timeframe)
+		sync, err := asset.IsTimeframeIndexUpToDate(timeframe)
 		if err != nil {
 			return err
 		}
@@ -67,29 +66,34 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 			return nil
 		}
 
-		maxTime, err := state.GetLastConsistencyTime(pcommon.Env.MIN_TIME_FRAME)
+		maxTime, err := asset.GetLastConsistencyTimeCached(pcommon.Env.MIN_TIME_FRAME)
 		if err != nil {
 			return err
 		}
 
-		if err := state.AddIfUnfoundInReadList(timeframe); err != nil {
+		if err := asset.AddIfUnfoundInReadList(timeframe); err != nil {
 			return err
 		}
 
 		go func() {
 			for runner.Task.IsRunning() {
 				time.Sleep(5 * time.Second)
-				printTimeframeIndexingStatus(runner, state)
+				printTimeframeIndexingStatus(runner, asset)
 			}
 		}()
 
-		prevT1, err := state.GetLastTimeframeIndexingDate(timeframe)
+		prevState, err := asset.GetLastPrevStateCached(timeframe)
+		if err != nil {
+			return err
+		}
+
+		prevT1, err := asset.GetLastTimeframeIndexingDate(timeframe)
 		if err != nil {
 			return err
 		}
 		var t0, t1 pcommon.TimeUnit
 		if prevT1 == 0 {
-			t0Time, t1Time := buildInitialCandleRange(state.DataHistoryTime0().ToTime(), timeframe)
+			t0Time, t1Time := buildInitialCandleRange(asset.DataHistoryTime0().ToTime(), timeframe)
 			t0 = pcommon.NewTimeUnitFromTime(t0Time)
 			t1 = pcommon.NewTimeUnitFromTime(t1Time)
 		} else {
@@ -107,7 +111,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		currentReadSize := 0
 
 		//tx
-		txn := state.NewTX(false)
+		txn := asset.NewTX(false)
 		defer txn.Discard()
 
 		//iterator
@@ -118,18 +122,21 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		defer iter.Close()
 
 		for t1 < maxTime {
-			ticks, err := state.GetInDataRange(t0, t1, pcommon.Env.MIN_TIME_FRAME, txn, iter)
+			ticks, err := asset.GetInDataRange(t0, t1, pcommon.Env.MIN_TIME_FRAME, txn, iter)
 			if err != nil {
 				return err
 			}
-			size, _ := util.Len(ticks)
+			size := ticks.Len()
 			currentReadSize += size
 			if size > 0 {
-				batch[t1] = ticks.Aggregate(timeframe, t1).ToRaw(state.Decimals())
+				aggregatedTick := ticks.Aggregate(timeframe, t1)
+				prevState.CheckUpdateMin(aggregatedTick.Min(), t1)
+				prevState.CheckUpdateMax(aggregatedTick.Max(), t1)
+				batch[t1] = aggregatedTick.ToRaw(asset.Decimals())
 				runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, 1)
 			}
 			if len(batch) >= MAX_BATCH_SIZE || currentReadSize >= MAX_READ_SIZE {
-				if err := state.Store(batch, timeframe, t1); err != nil {
+				if err := asset.Store(batch, timeframe, prevState.Copy(), t1); err != nil {
 					return err
 				}
 				batch = make(map[pcommon.TimeUnit][]byte)
@@ -145,13 +152,13 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, state *setlib.As
 		}
 
 		if len(batch) > 0 {
-			if err := state.Store(batch, timeframe, t0); err != nil {
+			if err := asset.Store(batch, timeframe, prevState.Copy(), t0); err != nil {
 				return err
 			}
 		}
 
 		runner.AddStep()
-		printTimeframeIndexingStatus(runner, state)
+		printTimeframeIndexingStatus(runner, asset)
 
 		return nil
 	}

@@ -74,7 +74,7 @@ func ParseOrderHeaderFromID(id string) (*CSVOrderHeader, []byte, error) {
 		return nil, nil, fmt.Errorf("invalid id %s", id)
 	}
 	label := parts[0]
-	timeframe, err := pcommon.LabelToTimeFrame(label)
+	timeframe, err := pcommon.Format.LabelToTimeFrame(label)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -157,7 +157,7 @@ func (order CSVOrderPacked) Unpack(sets WorkingSets) (*CSVOrderUnpacked, error) 
 	}
 
 	for _, order := range orders {
-		lct, err := order.Asset.GetLastConsistencyTime(timeframe)
+		lct, err := order.Asset.GetLastConsistencyTimeCached(timeframe)
 		if err != nil {
 			return nil, err
 		}
@@ -302,7 +302,7 @@ func (parameters *CSVOrderUnpacked) FetchOrderData(froms *[]pcommon.TimeUnit) (m
 			}
 
 			to := from.Add(interval)
-			data, err := state.GetInDataRange(from, to, parameters.Header.Timeframe, nil, nil)
+			data, err := state.GetInDataRange(from, to.Add(time.Millisecond), parameters.Header.Timeframe, nil, nil)
 			if err != nil {
 				setStopErr(err)
 				return

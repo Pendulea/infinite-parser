@@ -2,13 +2,18 @@ package set2
 
 import (
 	"bytes"
+	"errors"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
 	pcommon "github.com/pendulea/pendule-common"
 )
 
-func (state *AssetState) Store(data map[pcommon.TimeUnit][]byte, timeframe time.Duration, newConsistencyTime pcommon.TimeUnit) error {
+func (state *AssetState) Store(data map[pcommon.TimeUnit][]byte, timeframe time.Duration, newPrevState *PrevState, newConsistencyTime pcommon.TimeUnit) error {
+	if newConsistencyTime <= 0 {
+		return errors.New("newConsistencyTime must be greater than 0")
+	}
+
 	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
 	if err != nil {
 		return err
@@ -42,10 +47,12 @@ func (state *AssetState) Store(data map[pcommon.TimeUnit][]byte, timeframe time.
 		}
 	}
 
-	if newConsistencyTime > 0 {
-		if err := state.SetNewConsistencyTime(timeframe, newConsistencyTime, nil); err != nil {
-			return err
-		}
+	if err := state.storePrevState(newPrevState, timeframe, newConsistencyTime); err != nil {
+		return err
+	}
+
+	if err := state.setNewConsistencyTime(timeframe, newConsistencyTime); err != nil {
+		return err
 	}
 
 	return nil
@@ -127,19 +134,4 @@ func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDa
 		return totalDeleted, err
 	}
 	return totalDeleted, txn.Commit()
-}
-
-func (state *AssetState) StorePrevState(data []byte, timeframe time.Duration) error {
-	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
-	if err != nil {
-		return err
-	}
-
-	txn := state.NewTX(true)
-	defer txn.Discard()
-
-	if err := txn.Set(state.GetPrevStateKey(label), data); err != nil {
-		return err
-	}
-	return txn.Commit()
 }

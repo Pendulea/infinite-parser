@@ -12,6 +12,7 @@ type ColumnType byte
 const READ_LIST_COLUMN ColumnType = 0
 const LAST_INDEXATION_TIME_COLUMN ColumnType = 1
 const INDICATOR_PREV_STATE_COLUMN ColumnType = 2
+
 const DATA_COLUMN ColumnType = 255
 
 func (as *AssetState) GetAssetKey() []byte {
@@ -25,10 +26,10 @@ func (sk *AssetState) GetReadListKey() []byte {
 	return append(prefix, []byte(suffix)...)
 }
 
-func (sk *AssetState) GetPrevStateKey(timeFrameLabel string) []byte {
+func (sk *AssetState) GetPrevStateKey(timeFrameLabel string, date string) []byte {
 	assetKey := sk.Key()
 	prefix := append(assetKey[:], byte(INDICATOR_PREV_STATE_COLUMN))
-	return append(prefix, []byte(timeFrameLabel)...)
+	return append(prefix, append([]byte(timeFrameLabel), []byte(date)...)...)
 }
 
 func (sk *AssetState) GetDataKey(timeFrameLabel string, time pcommon.TimeUnit) []byte {

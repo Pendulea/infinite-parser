@@ -14,6 +14,7 @@ func (state *AssetState) NewTX(update bool) *badger.Txn {
 	return state.SetRef.db.NewTransaction(update)
 }
 
+// Get a list of ticks including t0 and excluding t1 (t0 <= Time(tick) < t1)
 func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator) (pcommon.DataList, error) {
 	if t1 < t0 {
 		return nil, errors.New("t1 must be after t0")
@@ -77,7 +78,7 @@ type DataLimitSettings struct {
 	StartByEnd     bool
 }
 
-func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool) (pcommon.DataList, error) {
+func (state *AssetState) GetDataLimit(settings DataLimitSettings, recordReading bool) (pcommon.DataList, error) {
 	timeFrame := settings.TimeFrame
 	limit := settings.Limit
 	offsetUnixTime := settings.OffsetUnixTime
@@ -160,9 +161,9 @@ func (state *AssetState) GetDataLimit(settings DataLimitSettings, setARead bool)
 		}
 	}
 
-	if setARead {
+	if recordReading {
 		go func() {
-			err := state.updateInReadList(timeFrame)
+			err := state.onNewRead(timeFrame)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"symbol": state.SetRef.ID(),
@@ -207,23 +208,4 @@ func (state *AssetState) GetLatestData(timeframe time.Duration) (interface{}, pc
 		StartByEnd:     true,
 	}
 	return state.getSingleData(settings)
-}
-
-func (state *AssetState) GetPrevState(timeframe time.Duration) ([]byte, error) {
-	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
-	if err != nil {
-		return nil, err
-	}
-
-	txn := state.NewTX(false)
-	defer txn.Discard()
-
-	itm, err := txn.Get(state.GetPrevStateKey(label))
-	if err != nil {
-		if err == badger.ErrKeyNotFound {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return itm.ValueCopy(nil)
 }

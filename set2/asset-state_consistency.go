@@ -1,6 +1,7 @@
 package set2
 
 import (
+	"errors"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
@@ -8,7 +9,7 @@ import (
 )
 
 func (state *AssetState) IsConsistent(timeframe time.Duration) (bool, error) {
-	t, err := state.GetLastConsistencyTime(timeframe)
+	t, err := state.GetLastConsistencyTimeCached(timeframe)
 	if err != nil {
 		return false, err
 	}
@@ -17,11 +18,10 @@ func (state *AssetState) IsConsistent(timeframe time.Duration) (bool, error) {
 }
 
 func (state *AssetState) ShouldSync() (*string, error) {
-	t, err := state.GetLastConsistencyTime(pcommon.Env.MIN_TIME_FRAME)
+	t, err := state.GetLastConsistencyTimeCached(pcommon.Env.MIN_TIME_FRAME)
 	if err != nil {
 		return nil, err
 	}
-
 	if t == 0 {
 		return &state.settings.MinDataDate, nil
 	}
@@ -36,31 +36,37 @@ func (state *AssetState) ShouldSync() (*string, error) {
 	return nil, nil
 }
 
-func (state *AssetState) SetNewConsistencyTime(timeframe time.Duration, newLastDataTime pcommon.TimeUnit, tx *badger.Txn) error {
+func (state *AssetState) setNewConsistencyTime(timeframe time.Duration, newLastDataTime pcommon.TimeUnit) error {
 	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
 	if err != nil {
 		return err
 	}
 
-	txWasNil := false
-	if tx == nil {
-		txWasNil = true
-		tx = state.SetRef.db.NewTransaction(true)
-
-	}
-
+	tx := state.SetRef.db.NewTransaction(true)
 	if err := tx.Set(state.GetLastDataTimeKey(label), []byte(newLastDataTime.String())); err != nil {
 		return err
 	}
 
-	if txWasNil {
-		return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
 	}
-	return nil
 
+	state.readList.strictConsistencyUpdate(timeframe, newLastDataTime)
+	return nil
 }
 
-func (state *AssetState) GetLastConsistencyTime(timeframe time.Duration) (pcommon.TimeUnit, error) {
+func (state *AssetState) GetLastConsistencyTimeCached(timeframe time.Duration) (pcommon.TimeUnit, error) {
+	c := state.readList.GetConsistency(timeframe)
+	if c == nil {
+		return 0, errors.New("consistency not found")
+	}
+	if c[1] == c[0] {
+		return 0, nil
+	}
+	return c[1], nil
+}
+
+func (state *AssetState) pullLastConsistencyTimeFromDB(timeframe time.Duration) (pcommon.TimeUnit, error) {
 	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
 	if err != nil {
 		return 0, err

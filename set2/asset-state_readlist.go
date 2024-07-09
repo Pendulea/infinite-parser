@@ -2,7 +2,6 @@ package set2
 
 import (
 	"encoding/json"
-	"strconv"
 	"sync"
 	"time"
 
@@ -12,21 +11,15 @@ import (
 )
 
 type assetReadlist struct {
-	readList *map[string]read
+	readList *map[time.Duration]read
 	mu       sync.RWMutex
-	building bool
 }
 
 func newReadlistSet() *assetReadlist {
 	return &assetReadlist{
 		readList: nil,
 		mu:       sync.RWMutex{},
-		building: false,
 	}
-}
-
-func (s *assetReadlist) isBuilding() bool {
-	return s.building
 }
 
 func (s *assetReadlist) isSet() bool {
@@ -34,50 +27,82 @@ func (s *assetReadlist) isSet() bool {
 }
 
 type read struct {
-	Time      pcommon.TimeUnit
-	Timeframe time.Duration
+	Time             pcommon.TimeUnit
+	Timeframe        time.Duration
+	prevState        *PrevState
+	consistencyRange [2]pcommon.TimeUnit
 }
 
-func (r *read) key() string {
-	return strconv.FormatInt(int64(r.Timeframe), 10)
-}
-
-func newRead(timeframe time.Duration) *read {
+func newRead(timeframe time.Duration, t0 pcommon.TimeUnit) *read {
 	r := read{
 		Time:      pcommon.NewTimeUnitFromTime(time.Now()),
 		Timeframe: timeframe,
+		consistencyRange: [2]pcommon.TimeUnit{
+			t0,
+			t0,
+		},
+		prevState: NewAssetPrevState(),
 	}
 	return &r
 }
 
-func (rl *assetReadlist) add(timeframe time.Duration) *read {
-	r := newRead(timeframe)
+func (rl *assetReadlist) strictAdd(timeframe time.Duration, t0 pcommon.TimeUnit) *read {
+	r := newRead(timeframe, t0)
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	_, exist := (*rl.readList)[r.key()]
+	_, exist := (*rl.readList)[r.Timeframe]
 	if exist {
 		return nil
 	}
-	(*rl.readList)[r.key()] = *r
+	(*rl.readList)[r.Timeframe] = *r
 	return r
 }
 
-func (rl *assetReadlist) update(timeframe time.Duration) *read {
-	r := newRead(timeframe)
+func (rl *assetReadlist) strictReadTimeUpdate(timeframe time.Duration) *read {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	(*rl.readList)[r.key()] = *r
-	return r
+	v, ok := (*rl.readList)[timeframe]
+	if !ok {
+		return nil
+	}
+	v.Time = pcommon.NewTimeUnitFromTime(time.Now())
+	(*rl.readList)[timeframe] = v
+	return &v
+}
+
+func (rl *assetReadlist) strictPrevStateUpdate(timeframe time.Duration, prevState *PrevState) *read {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	v, ok := (*rl.readList)[timeframe]
+	if !ok {
+		return nil
+	}
+	v.prevState = prevState
+	(*rl.readList)[timeframe] = v
+	return &v
+}
+
+func (rl *assetReadlist) strictConsistencyUpdate(timeframe time.Duration, tMax pcommon.TimeUnit) *read {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	v, ok := (*rl.readList)[timeframe]
+	if !ok {
+		return nil
+	}
+	v.consistencyRange[1] = tMax
+	(*rl.readList)[timeframe] = v
+	return &v
 }
 
 func (rl *assetReadlist) remove(timeframe time.Duration) {
-	r := newRead(timeframe)
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	delete(*rl.readList, r.key())
+	delete(*rl.readList, timeframe)
 }
 
 func (rl *assetReadlist) GetTimeFrameList() []time.Duration {
+	rl.mu.RLock()
+	defer rl.mu.RUnlock()
 	var list []time.Duration
 	for _, r := range *rl.readList {
 		list = append(list, r.Timeframe)
@@ -85,27 +110,44 @@ func (rl *assetReadlist) GetTimeFrameList() []time.Duration {
 	return lo.Uniq(list)
 }
 
-func (state *AssetState) pullReadList() error {
-	if state.readList.isSet() {
+func (rl *assetReadlist) GetConsistency(timeframe time.Duration) *[2]pcommon.TimeUnit {
+	rl.mu.RLock()
+	defer rl.mu.RUnlock()
+	v, ok := (*rl.readList)[timeframe]
+	if !ok {
 		return nil
 	}
+	return &[2]pcommon.TimeUnit{v.consistencyRange[0], v.consistencyRange[1]}
+}
 
-	for state.readList.isBuilding() {
-		time.Sleep(time.Millisecond * 300)
+func (rl *assetReadlist) GetPrevState(timeframe time.Duration) *PrevState {
+	rl.mu.RLock()
+	defer rl.mu.RUnlock()
+	v, ok := (*rl.readList)[timeframe]
+	if !ok {
 		return nil
 	}
-	state.readList.building = true
-	state.readList.mu.Lock()
-	defer state.readList.mu.Unlock()
+	return v.prevState.Copy()
+}
 
-	txn := state.SetRef.db.NewTransaction(false)
+func (asset *AssetState) pullReadList() error {
+	if asset.readList.isSet() {
+		return nil
+	}
+	asset.readList.mu.Lock()
+	defer asset.readList.mu.Unlock()
+
+	txn := asset.SetRef.db.NewTransaction(false)
 	defer txn.Discard()
 
-	item, err := txn.Get(state.GetReadListKey())
+	item, err := txn.Get(asset.GetReadListKey())
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
-			state.readList.readList = &map[string]read{}
-			return nil
+			r := newRead(time.Second, asset.DataHistoryTime0())
+			asset.readList.readList = &map[time.Duration]read{
+				pcommon.Env.MIN_TIME_FRAME: *r,
+			}
+			return _storeReadList(asset)
 		}
 		return err
 	}
@@ -115,12 +157,29 @@ func (state *AssetState) pullReadList() error {
 		return err
 	}
 
-	rl := map[string]read{}
+	rl := map[time.Duration]read{}
 	if err := json.Unmarshal(data, &rl); err != nil {
 		return err
 	}
 
-	state.readList.readList = &rl
+	asset.readList.readList = &rl
+	tmin := asset.DataHistoryTime0()
+	for timeframe, r := range *asset.readList.readList {
+		tmax, err := asset.pullLastConsistencyTimeFromDB(timeframe)
+		if err != nil {
+			return err
+		}
+		r.consistencyRange = [2]pcommon.TimeUnit{tmin, tmin}
+		if tmax > tmin {
+			r.consistencyRange[1] = tmax
+		}
+		r.prevState, err = asset.pullLastPrevStateFromDB(timeframe)
+		if err != nil {
+			return err
+		}
+		(*asset.readList.readList)[timeframe] = r
+	}
+
 	return nil
 }
 
@@ -140,19 +199,21 @@ func _storeReadList(state *AssetState) error {
 	return txn.Commit()
 }
 
-func (state *AssetState) updateInReadList(timeframe time.Duration) error {
-	state.readList.update(timeframe)
-	return _storeReadList(state)
+func (state *AssetState) onNewRead(timeframe time.Duration) error {
+	if state.readList.strictReadTimeUpdate(timeframe) != nil {
+		return _storeReadList(state)
+	}
+	return nil
 }
 
-func (state *AssetState) AddIfUnfoundInReadList(timeframe time.Duration) error {
+func (asset *AssetState) AddIfUnfoundInReadList(timeframe time.Duration) error {
 	_, err := pcommon.Format.TimeFrameToLabel(timeframe)
 	if err != nil {
 		return err
 	}
-	exist := state.readList.add(timeframe)
+	exist := asset.readList.strictAdd(timeframe, asset.DataHistoryTime0())
 	if exist != nil {
-		return _storeReadList(state)
+		return _storeReadList(asset)
 	}
 	return nil
 }
