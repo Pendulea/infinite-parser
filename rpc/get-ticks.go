@@ -1,66 +1,67 @@
 package rpc
 
 import (
+	"fmt"
+	setlib "pendulev2/set2"
+	"pendulev2/util"
+	"time"
+
 	pcommon "github.com/pendulea/pendule-common"
 )
 
 type GetTicksRequest struct {
-	To             int64      `json:"to"`        //In unix seconds
-	Timeframe      int64      `json:"timeframe"` //In milliseconds
-	Orders         [][]string `json:"orders"`    // [Address, columns...]
-	OffsetUnixTime int64      `json:"offset_unix_time"`
+	Timeframe      int64                `json:"timeframe"` //In milliseconds
+	Address        pcommon.AssetAddress `json:"address"`
+	OffsetUnixTime int64                `json:"offset_unix_time"`
 }
 
 type TickList struct {
-	List     interface{}      `json:"list"`
+	List     pcommon.DataList `json:"list"`
 	DataType pcommon.DataType `json:"data_type"`
 }
 
-type GetTicksResponse struct {
-	Assets map[pcommon.AssetAddress]TickList `json:"assets"`
-}
-
-func (s *RPCService) GetTicks(payload pcommon.RPCRequestPayload) (*GetTicksResponse, error) {
+func (s *RPCService) GetTicks(payload pcommon.RPCRequestPayload) (*TickList, error) {
+	start := time.Now()
 	r := GetTicksRequest{}
 	err := pcommon.Format.DecodeMapIntoStruct(payload, &r)
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
 
-	// timeframe := time.Duration(r.Timeframe) * time.Millisecond
-	// if _, err := pcommon.Format.TimeFrameToLabel(timeframe); err != nil {
-	// 	return nil, err
-	// }
+	timeframe := time.Duration(r.Timeframe) * time.Millisecond
+	if _, err := pcommon.Format.TimeFrameToLabel(timeframe); err != nil {
+		return nil, err
+	}
 
-	// listOrders, err := setlib.ParseArrayOrder(*s.Sets, timeframe, r.Orders)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// ret := &GetTicksResponse{
-	// 	Assets: make(map[pcommon.AssetAddress]TickList),
-	// }
-	// for _, order := range listOrders {
-	// 	settings := setlib.DataLimitSettings{
-	// 		TimeFrame:      timeframe,
-	// 		Limit:          2000,
-	// 		OffsetUnixTime: pcommon.NewTimeUnit(r.OffsetUnixTime),
-	// 		StartByEnd:     true,
-	// 	}
-	// 	ticks, err := order.Asset.GetDataLimit(settings, true)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+	parsed, err := r.Address.Parse()
+	if err != nil {
+		return nil, err
+	}
 
-	// 	address := order.Asset.Address()
-	// 	tl := TickList{
-	// 		DataType: order.Asset.DataType(),
-	// 	}
-	// 	tl.List, err = ticks.ToJSON(order.Columns.Columns())
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	ret.Assets[address] = tl
-	// }
-	// return ret, nil
+	set := s.Sets.Find(parsed.IDString())
+	if set == nil {
+		return nil, util.ErrSetNotFound
+	}
+
+	asset := set.Assets[r.Address]
+	if asset == nil {
+		return nil, util.ErrAssetNotFound
+	}
+	settings := setlib.DataLimitSettings{
+		TimeFrame:      timeframe,
+		Limit:          1000,
+		OffsetUnixTime: pcommon.NewTimeUnit(r.OffsetUnixTime),
+		StartByEnd:     true,
+	}
+
+	list, err := asset.GetDataLimit(settings, true)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("GetTicks took", time.Since(start))
+	return &TickList{
+		List:     list,
+		DataType: asset.DataType(),
+	}, nil
 }
