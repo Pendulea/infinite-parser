@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"fmt"
-	setlib "pendulev2/set2"
 	"pendulev2/util"
 	"time"
 
@@ -10,9 +9,10 @@ import (
 )
 
 type GetTicksRequest struct {
-	Timeframe      int64                `json:"timeframe"` //In milliseconds
-	Address        pcommon.AssetAddress `json:"address"`
-	OffsetUnixTime int64                `json:"offset_unix_time"`
+	Timeframe int64                `json:"timeframe"` //In milliseconds
+	Address   pcommon.AssetAddress `json:"address"`
+	FromTime  int64                `json:"from_time"`
+	ToTime    int64                `json:"to_time"`
 }
 
 type TickList struct {
@@ -47,19 +47,16 @@ func (s *RPCService) GetTicks(payload pcommon.RPCRequestPayload) (*TickList, err
 	if asset == nil {
 		return nil, util.ErrAssetNotFound
 	}
-	settings := setlib.DataLimitSettings{
-		TimeFrame:      timeframe,
-		Limit:          1000,
-		OffsetUnixTime: pcommon.NewTimeUnit(r.OffsetUnixTime),
-		StartByEnd:     true,
-	}
 
-	list, err := asset.GetDataLimit(settings, true)
+	from := pcommon.NewTimeUnit(r.FromTime)
+	to := pcommon.NewTimeUnit(r.ToTime)
+
+	list, err := asset.GetInDataRange(from, to, timeframe, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("GetTicks took", time.Since(start))
+	fmt.Printf("Get %d Ticks %s : +%s\n", list.Len(), asset.Address(), time.Since(start).String())
 	return &TickList{
 		List:     list,
 		DataType: asset.DataType(),
