@@ -156,16 +156,6 @@ func (order CSVOrderPacked) Unpack(sets WorkingSets) (*CSVOrderUnpacked, error) 
 		return nil, err
 	}
 
-	for _, order := range orders {
-		lct, err := order.Asset.GetLastConsistencyTimeCached(timeframe)
-		if err != nil {
-			return nil, err
-		}
-		if lct < to {
-			return nil, fmt.Errorf("asset %s is not consistent until %s", order.Asset.Address(), lct)
-		}
-	}
-
 	return &CSVOrderUnpacked{order.Header, orders}, nil
 }
 
