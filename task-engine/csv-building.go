@@ -246,28 +246,45 @@ func findMinTimeState(parameters *setlib.CSVOrderUnpacked, listData *map[pcommon
 	return minTime, minTimeState
 }
 
-func createCSVLine(parameters *setlib.CSVOrderUnpacked, listData *map[pcommon.AssetAddress]pcommon.DataList, minTime pcommon.TimeUnit) []string {
-	var line []string
-
+func areAllOrderDone(parameters *setlib.CSVOrderUnpacked, listData *map[pcommon.AssetAddress]pcommon.DataList) bool {
+	doneCount := 0
 	for _, order := range parameters.Orders {
 		assetStateID := order.Asset.Address()
 		list := (*listData)[assetStateID]
 		if list == nil || list.Len() == 0 {
-			continue
+			doneCount++
 		}
-		first := list.First()
+	}
+	return doneCount == len(parameters.Orders)
+}
+
+func createCSVLine(parameters *setlib.CSVOrderUnpacked, listData *map[pcommon.AssetAddress]pcommon.DataList, minTime pcommon.TimeUnit) []string {
+	var line []string
+
+	for _, order := range parameters.Orders {
 		precision := order.Asset.Decimals()
 		columns := order.Columns
 
+		assetStateID := order.Asset.Address()
+		list := (*listData)[assetStateID]
+
+		if list == nil || list.Len() == 0 {
+			if !areAllOrderDone(parameters, listData) {
+				assetLine := pcommon.NewTypeTime(order.Asset.DataType(), 0, 0).CSVLine(precision, columns)
+				line = append(line, assetLine...)
+			}
+			continue
+		}
+
+		first := list.First()
 		var assetLine []string
 		if first.GetTime() == minTime {
-			assetLine = list.First().CSVLine(precision, columns)
+			assetLine = first.CSVLine(precision, columns)
+			(*listData)[assetStateID] = (*listData)[assetStateID].RemoveFirstN(1)
 		} else {
 			assetLine = pcommon.NewTypeTime(order.Asset.DataType(), 0, 0).CSVLine(precision, columns)
 		}
-
 		line = append(line, assetLine...)
-		(*listData)[assetStateID] = (*listData)[assetStateID].RemoveFirstN(1)
 	}
 	return line
 }
