@@ -197,7 +197,6 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 					}
 					prevState.CheckUpdateMin(p.Value, minTime)
 					prevState.CheckUpdateMax(p.Value, minTime)
-
 					batch = append(batch, p.ToTime(minTime))
 				}
 			}
