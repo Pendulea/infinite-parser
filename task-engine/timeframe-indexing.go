@@ -38,7 +38,7 @@ func printTimeframeIndexingStatus(runner *gorunner.Runner, state *setlib.AssetSt
 				"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
 			}).Info(fmt.Sprintf("Indexing new %s rows on timeframe: %s", id, label))
 
-		} else if runner.CountSteps() == 1 {
+		} else if runner.CountSteps() == 1 && PARSED_ROWS_COUNT > 0 {
 			log.WithFields(log.Fields{
 				"rows": pcommon.Format.LargeNumberToShortString(PARSED_ROWS_COUNT),
 				"done": "+" + pcommon.Format.AccurateHumanize(runner.Timer()),
