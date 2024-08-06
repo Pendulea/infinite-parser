@@ -222,7 +222,6 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 	}
 
 	runner.AddProcess(process)
-
 }
 
 func buildIndicatorIndexingRunner(asset *setlib.AssetState, timeframe time.Duration) *gorunner.Runner {

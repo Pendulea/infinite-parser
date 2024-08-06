@@ -27,7 +27,7 @@ func GetPairPrice(pair string, futures bool) (float64, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 {
-		return 0, fmt.Errorf("pair not found")
+		return 0, fmt.Errorf("pair %s not found", pair)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
