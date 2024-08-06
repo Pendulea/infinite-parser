@@ -82,7 +82,10 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 	var tokenAPrice, tokenBPrice float64
 	firstInstance := false
 
-	listFiles, err := os.ReadDir(settings.DBPath())
+	id := settings.IDString()
+	dbPath := settings.DBPath()
+
+	listFiles, err := os.ReadDir(dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +104,10 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 			if err != nil {
 				return nil, err
 			}
+			if price == 0.00 {
+				return nil, errors.New("price is 0")
+			}
 			tokenAPrice = price
-
 			//get the price of the second token if it is not a stable coin
 			if !strings.Contains(symbol1, "USD") {
 				price, err := util.GetPairPrice(symbol1+"USDT", true)
@@ -115,9 +120,6 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 			}
 		}
 	}
-
-	id := settings.IDString()
-	dbPath := settings.DBPath()
 
 	options := badger.DefaultOptions(dbPath).WithLoggingLevel(badger.ERROR)
 	db, err := badger.Open(options)

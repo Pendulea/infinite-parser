@@ -122,7 +122,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 		defer iter.Close()
 
 		for t1 < maxTime {
-			ticks, err := asset.GetInDataRange(t0, t1, pcommon.Env.MIN_TIME_FRAME, txn, iter)
+			ticks, err := asset.GetInDataRange(t0, t1, pcommon.Env.MIN_TIME_FRAME, txn, iter, false)
 			if err != nil {
 				return err
 			}

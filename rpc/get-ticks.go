@@ -51,7 +51,7 @@ func (s *RPCService) GetTicks(payload pcommon.RPCRequestPayload) (*TickList, err
 	from := pcommon.NewTimeUnit(r.FromTime)
 	to := pcommon.NewTimeUnit(r.ToTime)
 
-	list, err := asset.GetInDataRange(from, to, timeframe, nil, nil)
+	list, err := asset.GetInDataRange(from, to, timeframe, nil, nil, true)
 	if err != nil {
 		return nil, err
 	}

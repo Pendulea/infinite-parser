@@ -292,7 +292,7 @@ func (parameters *CSVOrderUnpacked) FetchOrderData(froms *[]pcommon.TimeUnit) (m
 			}
 
 			to := from.Add(interval)
-			data, err := state.GetInDataRange(from, to.Add(time.Millisecond), parameters.Header.Timeframe, nil, nil)
+			data, err := state.GetInDataRange(from, to.Add(time.Millisecond), parameters.Header.Timeframe, nil, nil, true)
 			if err != nil {
 				setStopErr(err)
 				return

@@ -133,7 +133,7 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 				t1 = t0.Add(timeframe * time.Duration(maxTickCount))
 
 				//we get the ticks between t0 and newT1
-				ticks, err := dep.GetInDataRange(t0, t1.Add(time.Millisecond), timeframe, nil, nil)
+				ticks, err := dep.GetInDataRange(t0, t1.Add(time.Millisecond), timeframe, nil, nil, false)
 				if err != nil {
 					return err
 				}

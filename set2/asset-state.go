@@ -68,6 +68,7 @@ func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
 	t0 := state.DataHistoryTime0()
 	consistencies := []pcommon.Consistency{}
 
+	maxRead := pcommon.TimeUnit(0)
 	for _, v := range *state.readList.readList {
 		consistency := pcommon.Consistency{
 			Range:     [2]pcommon.TimeUnit{t0, t0},
@@ -75,6 +76,10 @@ func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
 			MinValue:  v.prevState.min,
 			MaxValue:  v.prevState.max,
 		}
+		if v.Time > maxRead {
+			maxRead = v.Time
+		}
+
 		tmax, err := state.GetLastConsistencyTimeCached(v.Timeframe)
 		if err != nil {
 			return nil, err
@@ -98,6 +103,7 @@ func (state *AssetState) JSON() (*pcommon.AssetJSON, error) {
 		DataType:                   state.DataType(),
 		Decimals:                   state.Decimals(),
 		MinDataDate:                state.settings.MinDataDate,
+		LastReadTime:               maxRead,
 	}, nil
 }
 

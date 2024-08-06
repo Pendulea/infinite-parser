@@ -15,7 +15,7 @@ func (state *AssetState) NewTX(update bool) *badger.Txn {
 }
 
 // Get a list of ticks including t0 and excluding t1 (t0 <= Time(tick) < t1)
-func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator) (pcommon.DataList, error) {
+func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.Duration, txn *badger.Txn, iter *badger.Iterator, recordReading bool) (pcommon.DataList, error) {
 	if t1 < t0 {
 		return nil, errors.New("t1 must be after t0")
 	}
@@ -66,6 +66,18 @@ func (state *AssetState) GetInDataRange(t0, t1 pcommon.TimeUnit, timeframe time.
 			return nil, err
 		}
 		ret = ret.Append(unraw)
+	}
+
+	if recordReading {
+		go func() {
+			err := state.onNewRead(timeframe)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"symbol": state.SetRef.ID(),
+					"error":  err.Error(),
+				}).Error("Error setting last read")
+			}
+		}()
 	}
 
 	return ret, nil
