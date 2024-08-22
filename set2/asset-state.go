@@ -3,6 +3,7 @@ package set2
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	log "github.com/sirupsen/logrus"
@@ -137,7 +138,6 @@ func (state *AssetState) IsPoint() bool {
 }
 
 func (state *AssetState) PrintReadList() {
-	fmt.Printf("Readlist: %s of %s\n", state.Address())
 	for _, v := range *state.readList.readList {
 		fmt.Println(v.Timeframe, v.Time.ToTime())
 	}
@@ -189,4 +189,31 @@ func (state *AssetState) FillDependencies(activeSets *WorkingSets) error {
 	}
 
 	return nil
+}
+
+/*
+RollbackData deletes all data from the asset state until the given date.
+toDate: the date to rollback to formatted as "YYYY-MM-DD" (The previous day at 23:59:59 will be the new consistency time)
+*/
+func (state *AssetState) RollbackData(toDate string, timeframe time.Duration) error {
+	c, err := state.GetLastConsistencyTimeCached(timeframe)
+	if err != nil {
+		return err
+	}
+	consistencyDate := pcommon.Format.FormatDateStr(c.ToTime())
+	if strings.Compare(toDate, consistencyDate) >= 0 {
+		return fmt.Errorf("rollback date %s is after last consistency date %s", toDate, consistencyDate)
+	}
+
+	dTime, err := pcommon.Format.StrDateToDate(toDate)
+	if err != nil {
+		return err
+	}
+
+	_, err = state.Delete(timeframe, pcommon.NewTimeUnitFromTime(dTime), nil)
+	if err != nil {
+		return err
+	}
+
+	return state.rollbackPrevState(toDate, timeframe)
 }

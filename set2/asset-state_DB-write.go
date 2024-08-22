@@ -58,17 +58,17 @@ func (state *AssetState) Store(data map[pcommon.TimeUnit][]byte, timeframe time.
 	return nil
 }
 
-func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDate func(pcommon.TimeUnit, int)) (int, error) {
+func (state *AssetState) Delete(timeFrame time.Duration, t0 pcommon.TimeUnit, updateLastDeletedElemDate func(pcommon.TimeUnit, int)) (int, error) {
 	label, err := pcommon.Format.TimeFrameToLabel(timeFrame)
 	if err != nil {
 		return 0, err
 	}
 
-	t0 := state.DataHistoryTime0()
-
 	// Open a BadgerDB transaction
 	txn := state.SetRef.db.NewTransaction(true)
 	defer txn.Discard()
+
+	isRollback := t0 > state.DataHistoryTime0()
 
 	// Creating a key range for deletion
 	startKey := state.GetDataKey(label, t0)
@@ -91,21 +91,24 @@ func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDa
 		defer iter.Close()
 
 		elemDeletedInBatch := 0
-		var lastKey []byte
-
+		var lastKeySeen []byte
+		var lastDeletedElementTime pcommon.TimeUnit = 0
 		for iter.Seek(startKey); iter.Valid(); iter.Next() {
-			key := iter.Item().KeyCopy(nil)
-			lastKey = key
+			lastKeySeen = iter.Item().KeyCopy(nil)
 			if elemDeletedInBatch >= BATCH_SIZE {
 				break
 			}
-			if bytes.Compare(key, limitKey) >= 0 {
+			if bytes.Compare(lastKeySeen, limitKey) > 0 {
 				break
 			}
-			if err := txn.Delete(key); err != nil {
-				return totalDeleted, err
+			_, t, err := state.ParseDataKey(lastKeySeen)
+			if err == nil {
+				if err := txn.Delete(lastKeySeen); err != nil {
+					return totalDeleted, err
+				}
+				lastDeletedElementTime = t
+				elemDeletedInBatch++
 			}
-			elemDeletedInBatch++
 		}
 		iter.Close()
 
@@ -116,22 +119,28 @@ func (state *AssetState) Delete(timeFrame time.Duration, updateLastDeletedElemDa
 
 		// Update the total deleted count
 		totalDeleted += elemDeletedInBatch
-		_, t, err := state.ParseDataKey(lastKey)
-		if err != nil {
-			return totalDeleted, err
+
+		if updateLastDeletedElemDate != nil {
+			updateLastDeletedElemDate(lastDeletedElementTime, totalDeleted)
 		}
-		updateLastDeletedElemDate(t, totalDeleted)
 
 		// If no more items were deleted in this batch, exit the loop
 		if elemDeletedInBatch < BATCH_SIZE {
 			break
 		}
-		startKey = lastKey
+
+		startKey = lastKeySeen
 	}
 
 	txn = state.SetRef.db.NewTransaction(true)
-	if err := txn.Delete(state.GetLastDataTimeKey(label)); err != nil {
-		return totalDeleted, err
+
+	if !isRollback {
+		if err := txn.Delete(state.GetLastDataTimeKey(label)); err != nil {
+			return totalDeleted, err
+		}
+		state.setNewConsistencyTime(timeFrame, state.DataHistoryTime0())
+	} else {
+		state.setNewConsistencyTime(timeFrame, t0-1)
 	}
 	return totalDeleted, txn.Commit()
 }

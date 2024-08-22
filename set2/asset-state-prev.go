@@ -160,6 +160,7 @@ func (asset *AssetState) searchForLastPrevStateFromDB(timeframe time.Duration) (
 		}
 		dayBack++
 	}
+
 	return nil, nil
 }
 
@@ -171,7 +172,7 @@ func (asset *AssetState) GetLastPrevStateCached(timeframe time.Duration) (*PrevS
 	return cached.Copy(), nil
 }
 
-func (asset *AssetState) storePrevState(newPrevState *PrevState, timeframe time.Duration, t pcommon.TimeUnit) error {
+func (asset *AssetState) storePrevState(newPrevState *PrevState, timeframe time.Duration, stateTime pcommon.TimeUnit) error {
 	if newPrevState.IsEmpty() {
 		return nil
 	}
@@ -179,7 +180,8 @@ func (asset *AssetState) storePrevState(newPrevState *PrevState, timeframe time.
 	if err != nil {
 		return err
 	}
-	date := pcommon.Format.FormatDateStr(t.ToTime())
+
+	date := pcommon.Format.FormatDateStr(stateTime.ToTime())
 
 	txn := asset.NewTX(true)
 	defer txn.Discard()
@@ -194,5 +196,44 @@ func (asset *AssetState) storePrevState(newPrevState *PrevState, timeframe time.
 	}
 
 	asset.readList.strictPrevStateUpdate(timeframe, newPrevState.Copy())
+	return nil
+}
+
+/*
+RollbackPrevState deletes all prev states from the asset state until the given date.
+toDate: the date to rollback to formatted as "YYYY-MM-DD" (The previous day at 23:59:59 will be the new consistency time)
+*/
+func (state *AssetState) rollbackPrevState(toDate string, timeframe time.Duration) error {
+	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
+	if err != nil {
+		return err
+	}
+
+	txn := state.SetRef.db.NewTransaction(true)
+	defer txn.Discard()
+
+	t0, err := pcommon.Format.StrDateToDate(toDate)
+	if err != nil {
+		return err
+	}
+
+	for t0.UnixNano() < time.Now().UnixNano() {
+		key := state.GetPrevStateKey(label, pcommon.Format.FormatDateStr(t0))
+		if err := txn.Delete(key); err != nil {
+			return err
+		}
+		t0 = t0.Add(time.Hour * 24)
+	}
+
+	if err := txn.Commit(); err != nil {
+		return err
+	}
+
+	lastState, err := state.pullLastPrevStateFromDB(timeframe)
+	if err != nil {
+		return err
+	}
+
+	state.readList.strictPrevStateUpdate(timeframe, lastState)
 	return nil
 }

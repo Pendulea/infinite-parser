@@ -127,6 +127,9 @@ func (rl *assetReadlist) GetPrevState(timeframe time.Duration) *PrevState {
 	if !ok {
 		return nil
 	}
+	if v.prevState == nil {
+		return nil
+	}
 	return v.prevState.Copy()
 }
 

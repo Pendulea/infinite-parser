@@ -73,7 +73,7 @@ func addTimeframeDeletionRunnerProcess(runner *gorunner.Runner, state *setlib.As
 				time.Sleep(5 * time.Second)
 			}
 		}()
-		count, err := state.Delete(timeframe, func(lastElementDeletedTime pcommon.TimeUnit, deleted int) {
+		count, err := state.Delete(timeframe, state.DataHistoryTime0(), func(lastElementDeletedTime pcommon.TimeUnit, deleted int) {
 			runner.SetSize().Current(lastElementDeletedTime.Int(), false)
 			runner.SetStatValue(STAT_VALUE_DATA_COUNT, int64(deleted))
 		})

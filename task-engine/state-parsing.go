@@ -78,6 +78,13 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetSt
 		}
 
 		date := getDate(runner)
+		dateToSync, err := asset.ShouldSync()
+		if err != nil {
+			return err
+		}
+		if *dateToSync != date {
+			return nil
+		}
 
 		dateTime, err := pcommon.Format.StrDateToDate(date)
 		if err != nil {
@@ -124,7 +131,7 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetSt
 		}
 
 		runner.AddStep()
-		csvLines, err := ParseFromCSV(asset, date)
+		csvLines, err := parseFromCSV(asset, date)
 		if err != nil {
 			return err
 		}
@@ -138,7 +145,7 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetSt
 
 		runner.SetSize().Max(int64(len(csvLines)))
 		runner.AddStep()
-		dataList := AggregateLinesToValuesToPrices(csvLines, asset)
+		dataList := aggregateLinesToValuesToPrices(csvLines, asset)
 		for _, tick := range dataList.Map() {
 			prevState.CheckUpdateMax(tick.Max(), tick.GetTime())
 			prevState.CheckUpdateMin(tick.Min(), tick.GetTime())
@@ -180,7 +187,7 @@ func parseFromCSVLine(fields []string) (CSVLine, error) {
 	return csv, nil
 }
 
-func ParseFromCSV(asset *setlib.AssetState, date string) ([]CSVLine, error) {
+func parseFromCSV(asset *setlib.AssetState, date string) ([]CSVLine, error) {
 	file, err := os.Open(asset.SetRef.Settings.BuildArchiveFilePath(asset.Type(), date, "csv"))
 	if err != nil {
 		return nil, err
@@ -252,7 +259,7 @@ func isHeader(row []string) bool {
 	return false
 }
 
-func AggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) pcommon.DataList {
+func aggregateLinesToValuesToPrices(lines []CSVLine, state *setlib.AssetState) pcommon.DataList {
 	bucket := pcommon.NewTypeTimeArray(state.DataType())
 	tmpList := pcommon.NewTypeTimeArray(state.DataType())
 

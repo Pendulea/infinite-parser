@@ -106,6 +106,16 @@ func (e *engine) AddCSVBuilding(from int64, to int64, timeframe int64, packed []
 	return nil
 }
 
+func (e *engine) RollBackState(state *setlib.AssetState, date string) error {
+	timeframes := state.GetActiveTimeFrameList()
+	timeframes = append([]time.Duration{pcommon.Env.MIN_TIME_FRAME}, timeframes...)
+	for _, tf := range timeframes {
+		r := buildStateRollbackRunner(state, date, tf)
+		e.Add(r)
+	}
+	return nil
+}
+
 func (e *engine) AddStateParsing(asset *setlib.AssetState) error {
 	if err := asset.FillDependencies(e.Sets); err != nil {
 		return err

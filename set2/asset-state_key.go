@@ -1,7 +1,6 @@
 package set2
 
 import (
-	"errors"
 	"pendulev2/util"
 
 	pcommon "github.com/pendulea/pendule-common"
@@ -53,13 +52,13 @@ func (sk *AssetState) ParseDataKey(key []byte) (timeFrameLabel string, time pcom
 		keyFormated = keyFormated[1:]
 		last8Bytes := keyFormated[len(keyFormated)-8:]
 		if len(last8Bytes) != 8 {
-			return "", 0, errors.New("invalid tick key format")
+			return "", 0, util.ErrInvalidDataKeyFormat
 		}
 		keyFormated = keyFormated[:len(keyFormated)-8]
 		if len(keyFormated) < 2 {
-			return "", 0, errors.New("invalid tick key format")
+			return "", 0, util.ErrInvalidDataKeyFormat
 		}
 		return string(keyFormated), pcommon.NewTimeUnit(util.BytesToInt64(last8Bytes)), nil
 	}
-	return "", 0, errors.New("invalid tick key format")
+	return "", 0, util.ErrInvalidDataKeyFormat
 }
