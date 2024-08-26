@@ -51,7 +51,7 @@ func (state *AssetState) setNewConsistencyTime(timeframe time.Duration, newLastD
 		return err
 	}
 
-	state.readList.strictConsistencyUpdate(timeframe, newLastDataTime)
+	state.readList.cacheConsistencyUpdate(timeframe, newLastDataTime)
 	return nil
 }
 
@@ -90,4 +90,23 @@ func (state *AssetState) pullLastConsistencyTimeFromDB(timeframe time.Duration) 
 	}
 
 	return pcommon.NewTimeUnitFromIntString(string(data)), nil
+}
+
+func (state *AssetState) __eraseConsistency(timeframe time.Duration) error {
+	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
+	if err != nil {
+		return err
+	}
+
+	txn := state.SetRef.db.NewTransaction(true)
+	defer txn.Discard()
+
+	if err := txn.Delete(state.GetLastDataTimeKey(label)); err != nil {
+		return err
+	}
+	if err := txn.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }

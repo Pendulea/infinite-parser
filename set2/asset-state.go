@@ -195,25 +195,31 @@ func (state *AssetState) FillDependencies(activeSets *WorkingSets) error {
 RollbackData deletes all data from the asset state until the given date.
 toDate: the date to rollback to formatted as "YYYY-MM-DD" (The previous day at 23:59:59 will be the new consistency time)
 */
-func (state *AssetState) RollbackData(toDate string, timeframe time.Duration) error {
-	c, err := state.GetLastConsistencyTimeCached(timeframe)
+func (state *AssetState) RollbackData(toDate string, timeframe time.Duration, cb func(percent float64)) error {
+	t1, err := state.GetLastConsistencyTimeCached(timeframe)
 	if err != nil {
 		return err
 	}
-	consistencyDate := pcommon.Format.FormatDateStr(c.ToTime())
+	consistencyDate := pcommon.Format.FormatDateStr(t1.ToTime())
 	if strings.Compare(toDate, consistencyDate) >= 0 {
-		return fmt.Errorf("rollback date %s is after last consistency date %s", toDate, consistencyDate)
+		// rollback date is after last consistency date
+		return nil
 	}
 
-	dTime, err := pcommon.Format.StrDateToDate(toDate)
+	t0, err := pcommon.Format.StrDateToDate(toDate)
 	if err != nil {
 		return err
 	}
 
-	_, err = state.Delete(timeframe, pcommon.NewTimeUnitFromTime(dTime), nil)
-	if err != nil {
-		return err
-	}
+	diff := t1 - pcommon.NewTimeUnitFromTime(t0)
 
-	return state.rollbackPrevState(toDate, timeframe)
+	lastSend := time.Now()
+	_, err = state.rollback(timeframe, toDate, func(lastT pcommon.TimeUnit, total int) {
+		if time.Since(lastSend) >= time.Second*2 {
+			n := lastT - pcommon.NewTimeUnitFromTime(t0)
+			cb(100 - ((float64(n) / float64(diff)) * 100))
+			lastSend = time.Now()
+		}
+	})
+	return err
 }

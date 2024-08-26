@@ -9,6 +9,7 @@ import (
 
 	"github.com/fantasim/gorunner"
 	pcommon "github.com/pendulea/pendule-common"
+	"github.com/samber/lo"
 )
 
 func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetState) {
@@ -142,13 +143,13 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 
 			for {
 				//we get the earliest tick of the dependencies
-				minTime := pcommon.TimeUnit(math.MaxInt64)
+				earliestTime := pcommon.TimeUnit(math.MaxInt64)
 				var minDependency *setlib.AssetState = nil
 				for dependencyIndex, ticks := range currentList {
 					first := ticks.First()
 					if first != nil {
-						if first.GetTime() < minTime {
-							minTime = first.GetTime()
+						if first.GetTime() < earliestTime {
+							earliestTime = first.GetTime()
 							minDependency = asset.DependenciesRef[dependencyIndex]
 						}
 					}
@@ -164,7 +165,7 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 					//we get the earliest tick of the dependency
 					first := ticks.First()
 					//if there is no earliest tick or the earliest tick is after the minTime
-					if first == nil || first.GetTime() > minTime {
+					if first == nil || first.GetTime() > earliestTime {
 						//we look for it in the previous list
 						last := prevList[dependencyIndex].Last()
 
@@ -195,18 +196,31 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 					if err != nil {
 						return err
 					}
-					prevState.CheckUpdateMin(p.Value, minTime)
-					prevState.CheckUpdateMax(p.Value, minTime)
-					batch = append(batch, p.ToTime(minTime))
+					prevState.CheckUpdateMin(p.Value, earliestTime)
+					prevState.CheckUpdateMax(p.Value, earliestTime)
+					batch = append(batch, p.ToTime(earliestTime))
+
+					currentDate := pcommon.Format.FormatDateStr(earliestTime.ToTime())
+					nextDate := pcommon.Format.FormatDateStr(earliestTime.Add(timeframe).ToTime())
+
+					if currentDate != nextDate {
+						prevState.UpdateState(indicatorDataBuilder.PrevState())
+						if err := asset.Store(batch.ToRaw(asset.Decimals()), timeframe, prevState.Copy(), earliestTime); err != nil {
+							return err
+						}
+						runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, int64(len(batch)))
+						batch = pcommon.PointTimeArray{}
+					}
 				}
 			}
 
-			prevState.UpdateState(indicatorDataBuilder.PrevState())
-			if err := asset.Store(batch.ToRaw(asset.Decimals()), timeframe, prevState.Copy(), t1); err != nil {
-				return err
+			if batch.Len() > 0 {
+				prevState.UpdateState(indicatorDataBuilder.PrevState())
+				if err := asset.Store(batch.ToRaw(asset.Decimals()), timeframe, prevState.Copy(), t1); err != nil {
+					return err
+				}
+				runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, int64(len(batch)))
 			}
-
-			runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, int64(len(batch)))
 
 			if runner.MustInterrupt() {
 				break
@@ -224,6 +238,16 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 	runner.AddProcess(process)
 }
 
+func getDepAddresses(address pcommon.AssetAddress) []pcommon.AssetAddress {
+	ret := []pcommon.AssetAddress{}
+	p, _ := address.Parse()
+	for _, d := range p.Dependencies {
+		ret = append(ret, d)
+		ret = append(ret, getDepAddresses(d)...)
+	}
+	return lo.Uniq[pcommon.AssetAddress](ret)
+}
+
 func buildIndicatorIndexingRunner(asset *setlib.AssetState, timeframe time.Duration) *gorunner.Runner {
 	runner := gorunner.NewRunner(buildTimeFrameIndexingKey(asset.Address(), timeframe))
 
@@ -233,6 +257,7 @@ func buildIndicatorIndexingRunner(asset *setlib.AssetState, timeframe time.Durat
 	addIndicatorIndexingRunnerProcess(runner, asset)
 
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
+
 		for _, r := range details.RunningRunners {
 
 			if !haveSameAddresses(r, runner) {
@@ -241,6 +266,11 @@ func buildIndicatorIndexingRunner(asset *setlib.AssetState, timeframe time.Durat
 
 			if !haveSameTimeframe(r, runner) {
 				continue
+			}
+
+			list := getDepAddresses(getAddresses(runner)[0])
+			for _, addr := range list {
+				isAddressInRunner(r, addr)
 			}
 
 			return false

@@ -3,6 +3,7 @@ package set2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"pendulev2/util"
@@ -150,6 +151,7 @@ func NewSet(settings pcommon.SetSettings) (*Set, error) {
 
 	for _, assetSettings := range settings.Assets {
 		if err := set.AddAsset(assetSettings); err != nil {
+			fmt.Println(err)
 			return nil, err
 		}
 	}

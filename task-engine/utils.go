@@ -66,6 +66,16 @@ func getTimeframe(r *gorunner.Runner) time.Duration {
 	return timeframe
 }
 
+func isAddressInRunner(r *gorunner.Runner, address pcommon.AssetAddress) bool {
+	addresses := getAddresses(r)
+	for _, a := range addresses {
+		if a == address {
+			return true
+		}
+	}
+	return false
+}
+
 func haveSameAddresses(r1, r2 *gorunner.Runner) bool {
 	addresses1, ok := gorunner.GetArg[[]pcommon.AssetAddress](r1.Args, ARG_VALUE_ADDRESSES)
 	addresses2, ok2 := gorunner.GetArg[[]pcommon.AssetAddress](r2.Args, ARG_VALUE_ADDRESSES)
@@ -141,17 +151,17 @@ func HTMLify(r *gorunner.Runner) *pcommon.StatusHTML {
 		html.HTML = "<span>Indexing " + "<span style=\"font-weight: 700\">" + label + "</span> " + p.PrettyString() + " (<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
 		html.AssetID = p.PrettyString()
 	}
-	if strings.Contains(r.ID, TIMEFRAME_DELETION_KEY) {
-		timeframe := getTimeframe(r)
-		label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
-		addr := getAddresses(r)[0]
-		p, _ := addr.Parse()
+	// if strings.Contains(r.ID, STATE_ROLLBACK_KEY) {
+	// 	timeframe := getTimeframe(r)
+	// 	label, _ := pcommon.Format.TimeFrameToLabel(timeframe)
+	// 	addr := getAddresses(r)[0]
+	// 	date := getDate(r)
+	// 	p, _ := addr.Parse()
 
-		ETAString := pcommon.Format.AccurateHumanize(r.ETA())
-
-		html.HTML = "<span>Deleting " + "<span style=\"font-weight: 700\">" + label + "</span> " + p.PrettyString() + "  (<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
-		html.AssetID = p.PrettyString()
-	}
+	// 	ETAString := pcommon.Format.AccurateHumanize(r.ETA())
+	// 	html.HTML = "<span>Deleting " + "<span style=\"font-weight: 700\">" + label + "</span> " + p.PrettyString() + "  (<span style=\"font-weight: 700; color: green;\">" + ETAString + "</span>)" + "</span>"
+	// 	html.AssetID = p.PrettyString()
+	// }
 	if strings.Contains(r.ID, CSV_BUILDING_KEY) {
 		return nil
 	}

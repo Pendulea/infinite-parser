@@ -136,6 +136,10 @@ func (asset *AssetState) searchForLastPrevStateFromDB(timeframe time.Duration) (
 	if err != nil {
 		return nil, err
 	}
+	if tMax == 0 {
+		return nil, nil
+	}
+
 	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
 	if err != nil {
 		return nil, err
@@ -150,7 +154,8 @@ func (asset *AssetState) searchForLastPrevStateFromDB(timeframe time.Duration) (
 		key := asset.GetPrevStateKey(label, date)
 		itm, err := txn.Get(key)
 		if err == nil {
-			return itm.ValueCopy(nil)
+			b, err := itm.ValueCopy(nil)
+			return b, err
 		}
 		if err != badger.ErrKeyNotFound {
 			return nil, err
@@ -195,45 +200,6 @@ func (asset *AssetState) storePrevState(newPrevState *PrevState, timeframe time.
 		return err
 	}
 
-	asset.readList.strictPrevStateUpdate(timeframe, newPrevState.Copy())
-	return nil
-}
-
-/*
-RollbackPrevState deletes all prev states from the asset state until the given date.
-toDate: the date to rollback to formatted as "YYYY-MM-DD" (The previous day at 23:59:59 will be the new consistency time)
-*/
-func (state *AssetState) rollbackPrevState(toDate string, timeframe time.Duration) error {
-	label, err := pcommon.Format.TimeFrameToLabel(timeframe)
-	if err != nil {
-		return err
-	}
-
-	txn := state.SetRef.db.NewTransaction(true)
-	defer txn.Discard()
-
-	t0, err := pcommon.Format.StrDateToDate(toDate)
-	if err != nil {
-		return err
-	}
-
-	for t0.UnixNano() < time.Now().UnixNano() {
-		key := state.GetPrevStateKey(label, pcommon.Format.FormatDateStr(t0))
-		if err := txn.Delete(key); err != nil {
-			return err
-		}
-		t0 = t0.Add(time.Hour * 24)
-	}
-
-	if err := txn.Commit(); err != nil {
-		return err
-	}
-
-	lastState, err := state.pullLastPrevStateFromDB(timeframe)
-	if err != nil {
-		return err
-	}
-
-	state.readList.strictPrevStateUpdate(timeframe, lastState)
+	asset.readList.cachePrevStateUpdate(timeframe, newPrevState.Copy())
 	return nil
 }

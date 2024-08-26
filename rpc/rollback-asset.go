@@ -34,6 +34,5 @@ func (s *RPCService) RollbackAsset(payload pcommon.RPCRequestPayload) (interface
 	}
 
 	date := pcommon.Format.FormatDateStr(pcommon.NewTimeUnit(r.ToTime).ToTime())
-
 	return nil, engine.Engine.RollBackState(asset, date)
 }

@@ -101,9 +101,6 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 			t1 = t0.Add(timeframe)
 		}
 
-		const MAX_BATCH_SIZE = 30_000
-		const MAX_READ_SIZE = 1_000_000
-
 		runner.SetSize().Initial(t0.Int())
 		runner.SetSize().Max(maxTime.Int())
 
@@ -135,12 +132,15 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 				batch[t1] = aggregatedTick.ToRaw(asset.Decimals())
 				runner.IncrementStatValue(STAT_VALUE_DATA_COUNT, 1)
 			}
-			if len(batch) >= MAX_BATCH_SIZE || currentReadSize >= MAX_READ_SIZE {
+
+			currentDate := pcommon.Format.FormatDateStr(t1.ToTime())
+			nextDate := pcommon.Format.FormatDateStr(t1.Add(timeframe).ToTime())
+
+			if currentDate != nextDate {
 				if err := asset.Store(batch, timeframe, prevState.Copy(), t1); err != nil {
 					return err
 				}
 				batch = make(map[pcommon.TimeUnit][]byte)
-				currentReadSize = 0
 			}
 
 			t0 = t1
@@ -159,7 +159,6 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 
 		runner.AddStep()
 		printTimeframeIndexingStatus(runner, asset)
-
 		return nil
 	}
 

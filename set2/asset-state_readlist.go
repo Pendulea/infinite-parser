@@ -46,7 +46,7 @@ func newRead(timeframe time.Duration, t0 pcommon.TimeUnit) *read {
 	return &r
 }
 
-func (rl *assetReadlist) strictAdd(timeframe time.Duration, t0 pcommon.TimeUnit) *read {
+func (rl *assetReadlist) cacheAdd(timeframe time.Duration, t0 pcommon.TimeUnit) *read {
 	r := newRead(timeframe, t0)
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -58,7 +58,7 @@ func (rl *assetReadlist) strictAdd(timeframe time.Duration, t0 pcommon.TimeUnit)
 	return r
 }
 
-func (rl *assetReadlist) strictReadTimeUpdate(timeframe time.Duration) *read {
+func (rl *assetReadlist) cacheReadTimeUpdate(timeframe time.Duration) *read {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	v, ok := (*rl.readList)[timeframe]
@@ -70,7 +70,7 @@ func (rl *assetReadlist) strictReadTimeUpdate(timeframe time.Duration) *read {
 	return &v
 }
 
-func (rl *assetReadlist) strictPrevStateUpdate(timeframe time.Duration, prevState *PrevState) *read {
+func (rl *assetReadlist) cachePrevStateUpdate(timeframe time.Duration, prevState *PrevState) *read {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	v, ok := (*rl.readList)[timeframe]
@@ -82,7 +82,7 @@ func (rl *assetReadlist) strictPrevStateUpdate(timeframe time.Duration, prevStat
 	return &v
 }
 
-func (rl *assetReadlist) strictConsistencyUpdate(timeframe time.Duration, tMax pcommon.TimeUnit) *read {
+func (rl *assetReadlist) cacheConsistencyUpdate(timeframe time.Duration, tMax pcommon.TimeUnit) *read {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	v, ok := (*rl.readList)[timeframe]
@@ -203,7 +203,7 @@ func _storeReadList(state *AssetState) error {
 }
 
 func (state *AssetState) onNewRead(timeframe time.Duration) error {
-	if state.readList.strictReadTimeUpdate(timeframe) != nil {
+	if state.readList.cacheReadTimeUpdate(timeframe) != nil {
 		return _storeReadList(state)
 	}
 	return nil
@@ -214,7 +214,7 @@ func (asset *AssetState) AddIfUnfoundInReadList(timeframe time.Duration) error {
 	if err != nil {
 		return err
 	}
-	exist := asset.readList.strictAdd(timeframe, asset.DataHistoryTime0())
+	exist := asset.readList.cacheAdd(timeframe, asset.DataHistoryTime0())
 	if exist != nil {
 		return _storeReadList(asset)
 	}

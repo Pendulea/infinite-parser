@@ -65,18 +65,18 @@ func (e *engine) AddTimeframeIndexing(asset *setlib.AssetState, timeframe time.D
 	return nil
 }
 
-func (e *engine) AddTimeframeDeletion(state *setlib.AssetState, timeframe time.Duration) error {
-	if err := state.FillDependencies(e.Sets); err != nil {
-		return err
-	}
-	if timeframe < pcommon.Env.MIN_TIME_FRAME {
-		return util.ErrTimeframeTooSmall
-	}
+// func (e *engine) AddTimeframeDeletion(state *setlib.AssetState, timeframe time.Duration) error {
+// 	if err := state.FillDependencies(e.Sets); err != nil {
+// 		return err
+// 	}
+// 	if timeframe < pcommon.Env.MIN_TIME_FRAME {
+// 		return util.ErrTimeframeTooSmall
+// 	}
 
-	r := buildTimeframeDeletionRunner(state, timeframe)
-	e.Add(r)
-	return nil
-}
+// 	r := buildTimeframeDeletionRunner(state, timeframe)
+// 	e.Add(r)
+// 	return nil
+// }
 
 func (e *engine) AddCSVBuilding(from int64, to int64, timeframe int64, packed [][]string) error {
 	p := setlib.CSVOrderPacked{
@@ -108,7 +108,6 @@ func (e *engine) AddCSVBuilding(from int64, to int64, timeframe int64, packed []
 
 func (e *engine) RollBackState(state *setlib.AssetState, date string) error {
 	timeframes := state.GetActiveTimeFrameList()
-	timeframes = append([]time.Duration{pcommon.Env.MIN_TIME_FRAME}, timeframes...)
 	for _, tf := range timeframes {
 		r := buildStateRollbackRunner(state, date, tf)
 		e.Add(r)
