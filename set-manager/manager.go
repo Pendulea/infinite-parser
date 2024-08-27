@@ -1,11 +1,14 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	setlib "pendulev2/set2"
 	engine "pendulev2/task-engine"
+	"pendulev2/util"
 	"sync"
+	"time"
 
 	pcommon "github.com/pendulea/pendule-common"
 	log "github.com/sirupsen/logrus"
@@ -52,14 +55,14 @@ func (pm *SetManager) Add(newSet pcommon.SetSettings, firstTimeAdd bool) error {
 		set.RunValueLogGC()
 	}
 
-	// if set != nil {
-	// 	ctx, cancel := context.WithCancel(context.Background())
-	// 	set.AddCancelFunc(cancel)
-	// 	util.ScheduleTaskEvery(ctx, time.Minute, func() {
-	// 		runSetTasks(set)
-	// 	})
-	// 	runSetTasks(set)
-	// }
+	if set != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		set.AddCancelFunc(cancel)
+		util.ScheduleTaskEvery(ctx, time.Minute, func() {
+			runSetTasks(set)
+		})
+		runSetTasks(set)
+	}
 
 	return nil
 }

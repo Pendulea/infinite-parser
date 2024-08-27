@@ -48,6 +48,16 @@ func buildStateRollbackRunner(state *setlib.AssetState, date string, timeframe t
 			if !haveSameTimeframe(r, runner) {
 				continue
 			}
+			list := getDepAddresses(getAddresses(runner)[0])
+			i := 0
+			for _, addr := range list {
+				if isAddressInRunner(r, addr) {
+					i++
+				}
+			}
+			if i == 0 {
+				continue
+			}
 			return false
 		}
 

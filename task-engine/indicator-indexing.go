@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"pendulev2/set2"
 	setlib "pendulev2/set2"
@@ -17,12 +18,12 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 
 	process := func() error {
 
+		timeframe := getTimeframe(runner)
+
 		// If the state is a point and has no dependencies, we don't need to index it
 		if !asset.IsPoint() && !asset.ParsedAddress().HasDependencies() {
 			return nil
 		}
-
-		timeframe := getTimeframe(runner)
 
 		//calculate the minimum time of the dependencies
 		minLastDependenciesTime := pcommon.TimeUnit(math.MaxInt64)
@@ -75,6 +76,8 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 		if err != nil {
 			return err
 		}
+		fmt.Println("prevT1", prevT1.ToTime())
+
 		var t0, t1 pcommon.TimeUnit
 		//if there is no previous indexing
 		if prevT1 == 0 {
@@ -269,11 +272,18 @@ func buildIndicatorIndexingRunner(asset *setlib.AssetState, timeframe time.Durat
 			}
 
 			list := getDepAddresses(getAddresses(runner)[0])
+			i := 0
 			for _, addr := range list {
-				isAddressInRunner(r, addr)
+				if isAddressInRunner(r, addr) {
+					i++
+				}
+			}
+			if i == 0 {
+				continue
 			}
 
 			return false
+
 		}
 		return true
 	})

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"math"
+	"pendulev2/util"
 	"strings"
 	"time"
 
@@ -118,11 +119,8 @@ func (state *AssetState) rollback(
 	iter := txn.NewIterator(opts)
 	defer iter.Close()
 
-	//unset
-	var t1 pcommon.TimeUnit = 0
-
 	//element destructor
-	destructor := newDestructor(state.SetRef.db)
+	destructor := util.NewDestructor(state.SetRef.db)
 
 	for iter.Seek(startKey); iter.Valid(); iter.Next() {
 		currentKey := iter.Item().KeyCopy(nil)
@@ -131,10 +129,7 @@ func (state *AssetState) rollback(
 		}
 
 		if _, elemTime, err := state.ParseDataKey(currentKey); err == nil {
-			if t1 == 0 {
-				t1 = elemTime
-			}
-			destructor.delete(currentKey)
+			destructor.Delete(currentKey)
 			totalDeleted++
 
 			if updateLastDeletedElemDate != nil {
@@ -143,25 +138,24 @@ func (state *AssetState) rollback(
 
 			date := pcommon.Format.FormatDateStr(elemTime.ToTime())
 			if _, ok := dateSeen[date]; !ok {
+				if len(dateSeen) == 0 {
+					dateTime, _ := pcommon.Format.StrDateToDate(date)
+					nextDate := pcommon.Format.FormatDateStr(dateTime.Add(time.Hour * 24))
+					destructor.Delete(state.GetPrevStateKey(label, nextDate))
+				}
 				dateSeen[date] = true
-				destructor.delete(state.GetPrevStateKey(label, date))
+				destructor.Delete(state.GetPrevStateKey(label, date))
 			}
 		}
-		if destructor.err != nil {
-			return totalDeleted, destructor.err
+		if destructor.Error() != nil {
+			destructor.Discard()
+			return totalDeleted, destructor.Error()
 		}
 	}
 
-	d := pcommon.NewTimeUnitFromTime(time.Now())
-	for d >= t1 {
-		date := pcommon.Format.FormatDateStr(d.ToTime())
-		destructor.delete(state.GetPrevStateKey(label, date))
-		d = d.Add(-time.Hour * 24)
-	}
-
-	destructor.close()
-	if destructor.err != nil {
-		return totalDeleted, destructor.err
+	destructor.Discard()
+	if destructor.Error() != nil {
+		return totalDeleted, destructor.Error()
 	}
 
 	//If this is not a rollback, delete the last data time key

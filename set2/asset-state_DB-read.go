@@ -221,3 +221,30 @@ func (state *AssetState) GetLatestData(timeframe time.Duration) (interface{}, pc
 	}
 	return state.getSingleData(settings)
 }
+
+func (state *AssetState) __debug__printEntireDataSet() {
+	// Open a read-only transaction
+	txn := state.SetRef.db.NewTransaction(false)
+	defer txn.Discard() // Ensure the transaction is discarded after use
+
+	// Set up an iterator with a prefix
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = state.GetAssetKey()
+	it := txn.NewIterator(opts)
+	defer it.Close() // Ensure the iterator is closed after use
+
+	// Iterate over keys with the specified prefix
+	for it.Seek(opts.Prefix); it.ValidForPrefix(opts.Prefix); it.Next() {
+		item := it.Item()
+		key := item.Key()
+		value, err := item.ValueCopy(nil)
+		if err != nil {
+			log.Printf("Error reading value: %s\n", err)
+			return
+		}
+		// Do something with the key or the value
+		log.Printf("%s : %x\n", string(key), value)
+		// You can also fetch and process the value if needed
+	}
+
+}
