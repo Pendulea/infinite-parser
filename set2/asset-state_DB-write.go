@@ -145,6 +145,10 @@ func (state *AssetState) rollback(
 				}
 				dateSeen[date] = true
 				destructor.Delete(state.GetPrevStateKey(label, date))
+
+				if err := state.setNewConsistencyTime(timeFrame, elemTime); err != nil {
+					return totalDeleted, err
+				}
 			}
 		}
 		if destructor.Error() != nil {
