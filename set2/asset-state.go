@@ -137,6 +137,18 @@ func (state *AssetState) IsPoint() bool {
 	return pcommon.DEFAULT_ASSETS[state.settings.Address.AssetType].DataType == pcommon.POINT
 }
 
+func (state *AssetState) HasDependency(address pcommon.AssetAddress) bool {
+	if !state.ParsedAddress().HasDependencies() {
+		return state.Address() == address
+	}
+	for _, dep := range state.DependenciesRef {
+		if dep.HasDependency(address) {
+			return true
+		}
+	}
+	return false
+}
+
 func (state *AssetState) PrintReadList() {
 	for _, v := range *state.readList.readList {
 		fmt.Println(v.Timeframe, v.Time.ToTime())

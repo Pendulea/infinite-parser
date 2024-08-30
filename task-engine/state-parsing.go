@@ -153,7 +153,6 @@ func addStateParsingRunnerProcess(runner *gorunner.Runner, asset *setlib.AssetSt
 
 		runner.SetStatValue(STAT_VALUE_DATA_COUNT, int64(dataList.Len()))
 		runner.AddStep()
-
 		if err := asset.Store(dataList.ToRaw(asset.Decimals()), timeframe, prevState.Copy(), pcommon.NewTimeUnitFromTime(dateTime).Add(time.Hour*24)); err != nil {
 			return err
 		}

@@ -118,7 +118,7 @@ func addTimeframeIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 		iter := txn.NewIterator(opts)
 		defer iter.Close()
 
-		for t1 < maxTime {
+		for t1 <= maxTime {
 			ticks, err := asset.GetInDataRange(t0, t1, pcommon.Env.MIN_TIME_FRAME, txn, iter, false)
 			if err != nil {
 				return err
@@ -192,8 +192,6 @@ func buildTimeframeIndexingRunner(state *setlib.AssetState, timeframe time.Durat
 }
 
 func buildInitialCandleRange(earliestCandle time.Time, timeframe time.Duration) (time.Time, time.Time) {
-	earliestCandle = earliestCandle.UTC()
-
 	nextQuarter := func(t time.Time) time.Time {
 		quarter := int(t.Month()-1) / 3
 		year := t.Year()
@@ -272,8 +270,9 @@ func buildInitialCandleRange(earliestCandle time.Time, timeframe time.Duration) 
 		}
 
 		t0 := nextNDay(earliestCandle, 1)
-		return t0, t0.Add(timeframe)
+		return t0.UTC(), t0.Add(timeframe).UTC()
 	} else {
-		return earliestCandle, earliestCandle.Add(timeframe)
+
+		return earliestCandle.UTC(), earliestCandle.Add(timeframe).UTC()
 	}
 }

@@ -93,12 +93,29 @@ func (e *engine) AddCSVBuilding(from int64, to int64, timeframe int64, packed []
 	return nil
 }
 
-func (e *engine) RollBackState(state *setlib.AssetState, date string) error {
-	timeframes := state.GetActiveTimeFrameList()
-	for _, tf := range timeframes {
-		r := buildStateRollbackRunner(state, date, tf)
+func (e *engine) RollBackState(state *setlib.AssetState, date string, timeframe time.Duration) error {
+	for _, set := range e.Sets.Range() {
+		for _, asset := range set.Assets {
+			if state.Address() != asset.Address() {
+				if asset.HasDependency(state.Address()) {
+					e.RollBackState(asset, date, timeframe)
+				}
+			}
+		}
+	}
+
+	//if timeframe less or equal to the minimum timeframe, we need to rollback all timeframes
+	if timeframe <= pcommon.Env.MIN_TIME_FRAME {
+		timeframes := state.GetActiveTimeFrameList()
+		for _, tf := range timeframes {
+			r := buildStateRollbackRunner(state, date, tf)
+			e.Add(r)
+		}
+	} else {
+		r := buildStateRollbackRunner(state, date, timeframe)
 		e.Add(r)
 	}
+
 	return nil
 }
 

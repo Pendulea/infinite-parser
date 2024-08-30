@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"math"
 	"pendulev2/set2"
 	setlib "pendulev2/set2"
@@ -76,7 +75,6 @@ func addIndicatorIndexingRunnerProcess(runner *gorunner.Runner, asset *setlib.As
 		if err != nil {
 			return err
 		}
-		fmt.Println("prevT1", prevT1.ToTime())
 
 		var t0, t1 pcommon.TimeUnit
 		//if there is no previous indexing

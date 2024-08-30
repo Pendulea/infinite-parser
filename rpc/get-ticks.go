@@ -51,6 +51,16 @@ func (s *RPCService) GetTicks(payload pcommon.RPCRequestPayload) (*TickList, err
 	from := pcommon.NewTimeUnit(r.FromTime)
 	to := pcommon.NewTimeUnit(r.ToTime)
 
+	consistencyTime, err := asset.GetLastConsistencyTimeCached(timeframe)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the consistency time is the same as the end time, we need to add a second to the to time to get the last tick
+	if consistencyTime == to {
+		to = to.Add(time.Second)
+	}
+
 	list, err := asset.GetInDataRange(from, to, timeframe, nil, nil, true)
 	if err != nil {
 		return nil, err
