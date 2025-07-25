@@ -15,17 +15,17 @@ https://github.com/user-attachments/assets/0945ca56-b6ad-4d0f-8ad7-c39ffd23be73
 
 ## Overview
 
-Infinite Parser is designed to efficiently process massive volumes of cryptocurrency trading data from Binance. It downloads archived CSV files, extracts individual trades, and converts them into standardized timestamp-value pairs that can be aggregated into any timeframe and analyzed with technical indicators.
+Infinite Parser is designed to efficiently process massive volumes of cryptocurrency trading data from Binance. It downloads archived CSV files, extracts individual data points (trades/other metrics), and converts them into standardized timestamp-value pairs that can be aggregated into any timeframe and analyzed with technical indicators.
 
 ## Key Features
 
 - **Binance Integration**: Direct support for all cryptocurrency pairs listed on Binance
-- **Massive Scale Processing**: Handles hundreds of millions to billions of trades in minutes
+- **Massive Scale Processing**: Can handles hundreds of millions of trades in minutes on a laptop
 - **Multithreaded Architecture**: Optimized concurrent processing for maximum performance
 - **Flexible Timeframe Aggregation**: Convert tick data into any timeframe (1.5s, 1m, 5.99m, 6.45m, 1.3h, 4w, whatever)
 - **Technical Indicators**: Apply derived functions like RSI, MACD, Bollinger Bands, and more
 - **Unified Data Format**: Standardizes all data into consistent timestamp-value pairs
-- **Memory Efficient**: Smart data handling for processing massive datasets
+- **Memory Efficient**: Data are splited and organized into specific data assets so you can pick only the ones you need and save disk space instead of storing all available pairs data 
 
 ## How It Works
 
@@ -58,11 +58,11 @@ Aggregated Data → Technical Indicators → Analysis Results
 - **Trading Pairs**: All cryptocurrency pairs available on Binance
 - **Data Points**: Price, volume, trades, bid/ask spreads
 - **Timeframes**: Any custom timeframe from 1ms
-- **Indicators**: RSI, MACD, EMA, SMA, Bollinger Bands, Stochastic, and more
+- **Indicators**: RSI, MACD, EMA, SMA, and more
 
 ## Performance
 
-- **Processing Speed**: Billions of trade records in minutes
+- **Processing Speed**: Billions of trade records in minutes on a good architecture
 - **Concurrency**: Multithreaded processing utilizing all CPU cores
 - **Memory Optimization**: Efficient handling of large datasets
 - **Data Throughput**: High-speed CSV parsing and data transformation
@@ -94,26 +94,19 @@ The infinite-parser provides a user-friendly web interface for configuring and m
 
 ### Main Dashboard
 - **Pair Selection**: Choose from all available Binance cryptocurrency pairs
-- **Date Range**: Select start and end dates for data processing
+- **Date Range**: Select start and end dates for data export
 - **Timeframe Configuration**: Set custom aggregation timeframes
 - **Indicator Setup**: Configure technical indicators and parameters
 
 ### Processing Monitor
-- **Real-time Progress**: Live updates on processing status
 - **Performance Metrics**: Processing speed, memory usage, and completion estimates
 - **Job Queue**: View and manage multiple processing jobs
-- **Error Handling**: Real-time error reporting and recovery options
+- **Error Handling**: Real-time error reporting and recovery/rollback options
 
 ### Results Viewer
 - **Data Visualization**: Interactive charts for processed data
-- **Export Options**: Download results in various formats (JSON, CSV, Parquet)
+- **Export Options**: Download results in CSV
 - **Technical Analysis**: View applied indicators and analysis results
-
-## Performance Benchmarks
-
-- **Data Volume**: 1 billion trades processed in ~5 minutes
-- **Memory Usage**: You decided based on your available RAM+SWAP. Minimum required ~2GB
-- **CPU Utilization**: You can setup the amount of thread you want to allocate for the program. 
 
 ## Dependencies
 
