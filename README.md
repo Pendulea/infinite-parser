@@ -2,6 +2,17 @@
 
 A high-performance, multithreaded cryptocurrency data processing engine that downloads, parses, and organizes Binance historical trading data into unified tick datasets for technical analysis.
 
+<br />
+
+## Demo/Walkthrough with comments
+#### 1. Turn ON volume 
+#### 2. (sorry for quality, limited to 10MB)
+
+https://github.com/user-attachments/assets/0945ca56-b6ad-4d0f-8ad7-c39ffd23be73
+
+<br />
+
+
 ## Overview
 
 Infinite Parser is designed to efficiently process massive volumes of cryptocurrency trading data from Binance. It downloads archived CSV files, extracts individual trades, and converts them into standardized timestamp-value pairs that can be aggregated into any timeframe and analyzed with technical indicators.
